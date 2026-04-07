@@ -110,6 +110,7 @@ export function ShareStep({
   const [hasEverSelected, setHasEverSelected] = useState(false)
 
   const [activeTab, setActiveTab] = useState<"story" | "receipt">("receipt")
+  const [saveModalUrl, setSaveModalUrl] = useState<string | null>(null)
 
   // Separate sticker arrays for each canvas
   const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>([])
@@ -277,18 +278,31 @@ export function ShareStep({
 
   const handleDownloadReceipt = useCallback(() => {
     if (!receiptUrl) return
-    const link = document.createElement("a")
-    link.download = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}.png`
-    link.href = receiptUrl
-    link.click()
+    // On mobile (especially iOS Safari), <a download> goes to browser Downloads, not camera roll.
+    // Instead we show the image in a modal so the user can long-press → Save to Photos.
+    // On desktop we fall back to a normal anchor download.
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    if (isMobile) {
+      setSaveModalUrl(receiptUrl)
+    } else {
+      const link = document.createElement("a")
+      link.download = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}.png`
+      link.href = receiptUrl
+      link.click()
+    }
   }, [receiptUrl, data.drinkName])
 
   const handleDownloadStory = useCallback(() => {
     if (!storyUrl) return
-    const link = document.createElement("a")
-    link.download = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}-story.png`
-    link.href = storyUrl
-    link.click()
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    if (isMobile) {
+      setSaveModalUrl(storyUrl)
+    } else {
+      const link = document.createElement("a")
+      link.download = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}-story.png`
+      link.href = storyUrl
+      link.click()
+    }
   }, [storyUrl, data.drinkName])
 
   const handleFileChange = useCallback(
@@ -492,6 +506,14 @@ export function ShareStep({
           initialRect={selectionRect}
           onConfirm={handleSelectionConfirm}
           onCancel={() => setShowSelectionModal(false)}
+        />
+      )}
+
+      {/* Save Image Modal — shown on mobile instead of <a download> */}
+      {saveModalUrl && (
+        <SaveImageModal
+          url={saveModalUrl}
+          onClose={() => setSaveModalUrl(null)}
         />
       )}
 
@@ -1110,6 +1132,7 @@ function DraggableSticker({
         top: `${sticker.y}%`,
         transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
         zIndex: isSelected ? 50 : 10,
+        touchAction: "none",
       }}
       onMouseDown={handlePointerDown}
       onTouchStart={handlePointerDown}
@@ -1182,6 +1205,52 @@ function DraggableSticker({
 }
 
 /* ============================================================
+   Save Image Modal (mobile long-press to save)
+   ============================================================ */
+
+function SaveImageModal({ url, onClose }: { url: string; onClose: () => void }) {
+  // Detect iOS specifically for the instruction copy
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+  const instruction = isIOS
+    ? "Tap and hold the image below, then choose \"Add to Photos\"."
+    : "Tap and hold the image below, then choose \"Save image\" or \"Download image\"."
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-sm flex-col gap-4 rounded-xl bg-card p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-center">
+          <h3 className="font-mono text-base font-medium text-foreground">Save to Camera Roll</h3>
+          <p className="mt-1 font-sans text-sm text-muted-foreground">{instruction}</p>
+        </div>
+
+        {/* The image — fills available width; user long-presses this */}
+        <div className="flex items-center justify-center overflow-hidden rounded-lg bg-black/10">
+          <img
+            src={url}
+            alt="Your drank receipt"
+            className="max-h-[55vh] w-full object-contain"
+            draggable={false}
+          />
+        </div>
+
+        <button
+          onClick={onClose}
+          className="font-mono text-sm text-muted-foreground transition-colors hover:opacity-70"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ============================================================
    Foreground Selection Modal
    ============================================================ */
 
@@ -1197,67 +1266,105 @@ function ForegroundSelectionModal({
   onCancel: () => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null)
-  const [rect, setRect] = useState<SelectionRect | null>(initialRect)
-  const [selectionError, setSelectionError] = useState<string | null>(null)
 
-  const getRelativePosition = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (!containerRef.current) return null
-    const bounds = containerRef.current.getBoundingClientRect()
+  // Minimum box size in percent of container to prevent it from disappearing
+  const MIN_SIZE = 10
 
-    let clientX: number
-    let clientY: number
+  // Default box: centered 50×50%
+  const defaultRect: SelectionRect = initialRect ?? { x: 25, y: 25, width: 50, height: 50 }
+  const [rect, setRect] = useState<SelectionRect>(defaultRect)
 
-    if ("touches" in e && e.touches.length > 0) {
-      clientX = e.touches[0].clientX
-      clientY = e.touches[0].clientY
-    } else if ("clientX" in e) {
-      clientX = e.clientX
-      clientY = e.clientY
-    } else {
-      return null
+  // What the user is dragging: "move" | "nw"|"ne"|"sw"|"se" corner
+  type DragMode = "move" | "nw" | "ne" | "sw" | "se" | null
+  const dragModeRef = useRef<DragMode>(null)
+  const dragStartRef = useRef<{
+    clientX: number; clientY: number
+    rect: SelectionRect
+  } | null>(null)
+
+  const getClient = (e: MouseEvent | TouchEvent) => {
+    if ("touches" in e && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    if ("clientX" in e) return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY }
+    return { x: 0, y: 0 }
+  }
+
+  const startDrag = useCallback((mode: DragMode, e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation()
+    e.preventDefault()
+    const client = "touches" in e
+      ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      : { x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY }
+    dragModeRef.current = mode
+    dragStartRef.current = { clientX: client.x, clientY: client.y, rect: { ...rect } }
+  }, [rect])
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent | TouchEvent) => {
+      if (!dragModeRef.current || !dragStartRef.current || !containerRef.current) return
+      // Prevent scroll while interacting inside the modal
+      e.preventDefault()
+
+      const bounds = containerRef.current.getBoundingClientRect()
+      const { x: cx, y: cy } = getClient(e)
+      const dx = ((cx - dragStartRef.current.clientX) / bounds.width) * 100
+      const dy = ((cy - dragStartRef.current.clientY) / bounds.height) * 100
+      const r = dragStartRef.current.rect
+
+      let { x, y, width, height } = r
+
+      if (dragModeRef.current === "move") {
+        x = Math.max(0, Math.min(100 - width, r.x + dx))
+        y = Math.max(0, Math.min(100 - height, r.y + dy))
+      } else {
+        // Corner resize — keep opposite corner fixed
+        let x2 = r.x + r.width   // right
+        let y2 = r.y + r.height  // bottom
+
+        if (dragModeRef.current === "nw") {
+          x = Math.min(x2 - MIN_SIZE, Math.max(0, r.x + dx))
+          y = Math.min(y2 - MIN_SIZE, Math.max(0, r.y + dy))
+          width = x2 - x
+          height = y2 - y
+        } else if (dragModeRef.current === "ne") {
+          y = Math.min(y2 - MIN_SIZE, Math.max(0, r.y + dy))
+          width = Math.max(MIN_SIZE, Math.min(100 - r.x, r.width + dx))
+          height = y2 - y
+          x2 = r.x + width
+        } else if (dragModeRef.current === "sw") {
+          x = Math.min(x2 - MIN_SIZE, Math.max(0, r.x + dx))
+          height = Math.max(MIN_SIZE, Math.min(100 - r.y, r.height + dy))
+          width = x2 - x
+          y2 = r.y + height
+        } else if (dragModeRef.current === "se") {
+          width = Math.max(MIN_SIZE, Math.min(100 - r.x, r.width + dx))
+          height = Math.max(MIN_SIZE, Math.min(100 - r.y, r.height + dy))
+        }
+        // Clamp right/bottom edges
+        if (x + width > 100) width = 100 - x
+        if (y + height > 100) height = 100 - y
+      }
+
+      setRect({ x, y, width, height })
     }
 
-    const x = ((clientX - bounds.left) / bounds.width) * 100
-    const y = ((clientY - bounds.top) / bounds.height) * 100
+    const handleUp = () => {
+      dragModeRef.current = null
+      dragStartRef.current = null
+    }
 
-    return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) }
-  }, [])
-
-  const handlePointerDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    const pos = getRelativePosition(e)
-    if (!pos) return
-
-    setIsDragging(true)
-    setStartPoint(pos)
-    setRect(null)
-    setSelectionError(null)
-  }, [getRelativePosition])
-
-  const handlePointerMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDragging || !startPoint) return
-
-    const pos = getRelativePosition(e)
-    if (!pos) return
-
-    const x = Math.min(startPoint.x, pos.x)
-    const y = Math.min(startPoint.y, pos.y)
-    const width = Math.abs(pos.x - startPoint.x)
-    const height = Math.abs(pos.y - startPoint.y)
-
-    setRect({ x, y, width, height })
-  }, [isDragging, startPoint, getRelativePosition])
-
-  const handlePointerUp = useCallback(() => {
-    setIsDragging(false)
+    document.addEventListener("mousemove", handleMove, { passive: false })
+    document.addEventListener("mouseup", handleUp)
+    document.addEventListener("touchmove", handleMove, { passive: false })
+    document.addEventListener("touchend", handleUp)
+    return () => {
+      document.removeEventListener("mousemove", handleMove)
+      document.removeEventListener("mouseup", handleUp)
+      document.removeEventListener("touchmove", handleMove)
+      document.removeEventListener("touchend", handleUp)
+    }
   }, [])
 
   const handleConfirm = useCallback(() => {
-    if (!rect || rect.width <= 5 || rect.height <= 5) {
-      setSelectionError(pickError(ERRORS.noSelection))
-      return
-    }
     const bounds = containerRef.current?.getBoundingClientRect()
     onConfirm({
       ...rect,
@@ -1266,68 +1373,82 @@ function ForegroundSelectionModal({
     })
   }, [rect, onConfirm])
 
+  const handleStyle: React.CSSProperties = {
+    position: "absolute",
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    border: "2px solid #CB446A",
+    backgroundColor: "white",
+    touchAction: "none",
+    cursor: "pointer",
+    zIndex: 10,
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
       <div className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 rounded-xl bg-card p-4">
         <div className="text-center">
           <h3 className="font-mono text-lg font-medium text-foreground">Select Your Drink</h3>
-          <p className="text-sm text-muted-foreground">Draw a rectangle around the drink to create a sticker</p>
+          <p className="font-sans text-sm text-muted-foreground">Drag the box and resize the corners around your drink</p>
         </div>
 
-        {/* container uses object-contain so the full image is always visible */}
+        {/* Image container — object-contain, touch events blocked from scrolling */}
         <div
           ref={containerRef}
-          data-selection-container
-          className="relative cursor-crosshair overflow-hidden rounded-lg bg-black"
-          style={{ maxHeight: "60vh" }}
-          onMouseDown={handlePointerDown}
-          onMouseMove={handlePointerMove}
-          onMouseUp={handlePointerUp}
-          onMouseLeave={handlePointerUp}
-          onTouchStart={handlePointerDown}
-          onTouchMove={handlePointerMove}
-          onTouchEnd={handlePointerUp}
+          className="relative overflow-hidden rounded-lg bg-black select-none"
+          style={{ maxHeight: "60vh", touchAction: "none" }}
         >
           <img
             src={image}
             alt="Select area"
             className="block w-full h-full object-contain"
-            style={{ maxHeight: "60vh" }}
+            style={{ maxHeight: "60vh", userSelect: "none", WebkitUserSelect: "none", pointerEvents: "none" }}
             draggable={false}
           />
 
-          {/* Selection rectangle */}
-          {rect && (
-            <div
-              className="absolute border-2 border-dashed border-pink-dark bg-pink/20"
-              style={{
-                left: `${rect.x}%`,
-                top: `${rect.y}%`,
-                width: `${rect.width}%`,
-                height: `${rect.height}%`,
-              }}
-            />
-          )}
+          {/* Selection box */}
+          <div
+            className="absolute border-2 border-pink-dark bg-pink/20"
+            style={{
+              left: `${rect.x}%`,
+              top: `${rect.y}%`,
+              width: `${rect.width}%`,
+              height: `${rect.height}%`,
+              cursor: "move",
+              touchAction: "none",
+              boxSizing: "border-box",
+            }}
+            onMouseDown={(e) => startDrag("move", e)}
+            onTouchStart={(e) => startDrag("move", e)}
+          >
+            {/* Corner handles */}
+            {(["nw","ne","sw","se"] as const).map((corner) => (
+              <div
+                key={corner}
+                style={{
+                  ...handleStyle,
+                  top: corner.startsWith("n") ? -10 : undefined,
+                  bottom: corner.startsWith("s") ? -10 : undefined,
+                  left: corner.endsWith("w") ? -10 : undefined,
+                  right: corner.endsWith("e") ? -10 : undefined,
+                  cursor: corner === "nw" || corner === "se" ? "nwse-resize" : "nesw-resize",
+                }}
+                onMouseDown={(e) => startDrag(corner, e)}
+                onTouchStart={(e) => startDrag(corner, e)}
+              />
+            ))}
+          </div>
         </div>
 
         <div className="flex gap-3">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={onCancel}
-          >
+          <Button variant="outline" className="flex-1" onClick={onCancel}>
             Cancel
           </Button>
-          <Button
-            className="flex-1 bg-brown text-white hover:bg-brown/90"
-            onClick={handleConfirm}
-          >
+          <Button className="flex-1 bg-brown text-white hover:bg-brown/90" onClick={handleConfirm}>
             Confirm Selection
           </Button>
         </div>
-        {selectionError && (
-          <p className="text-center font-mono text-xs text-destructive">{selectionError}</p>
-        )}
       </div>
     </div>
   )
