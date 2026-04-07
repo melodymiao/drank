@@ -111,6 +111,7 @@ export function ShareStep({
 
   const [activeTab, setActiveTab] = useState<"story" | "receipt">("receipt")
   const [saveModalUrl, setSaveModalUrl] = useState<string | null>(null)
+  const [saveModalFilename, setSaveModalFilename] = useState<string>("")
 
   // Separate sticker arrays for each canvas
   const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>([])
@@ -278,15 +279,14 @@ export function ShareStep({
 
   const handleDownloadReceipt = useCallback(() => {
     if (!receiptUrl) return
-    // On mobile (especially iOS Safari), <a download> goes to browser Downloads, not camera roll.
-    // Instead we show the image in a modal so the user can long-press → Save to Photos.
-    // On desktop we fall back to a normal anchor download.
+    const filename = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}.png`
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     if (isMobile) {
+      setSaveModalFilename(filename)
       setSaveModalUrl(receiptUrl)
     } else {
       const link = document.createElement("a")
-      link.download = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}.png`
+      link.download = filename
       link.href = receiptUrl
       link.click()
     }
@@ -294,12 +294,14 @@ export function ShareStep({
 
   const handleDownloadStory = useCallback(() => {
     if (!storyUrl) return
+    const filename = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}-story.png`
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     if (isMobile) {
+      setSaveModalFilename(filename)
       setSaveModalUrl(storyUrl)
     } else {
       const link = document.createElement("a")
-      link.download = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}-story.png`
+      link.download = filename
       link.href = storyUrl
       link.click()
     }
@@ -513,6 +515,7 @@ export function ShareStep({
       {saveModalUrl && (
         <SaveImageModal
           url={saveModalUrl}
+          filename={saveModalFilename}
           onClose={() => setSaveModalUrl(null)}
         />
       )}
@@ -1208,12 +1211,13 @@ function DraggableSticker({
    Save Image Modal (mobile long-press to save)
    ============================================================ */
 
-function SaveImageModal({ url, onClose }: { url: string; onClose: () => void }) {
-  // Detect iOS specifically for the instruction copy
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
-  const instruction = isIOS
-    ? "Tap and hold the image below, then choose \"Add to Photos\"."
-    : "Tap and hold the image below, then choose \"Save image\" or \"Download image\"."
+function SaveImageModal({ url, filename, onClose }: { url: string; filename: string; onClose: () => void }) {
+  const handleBrowserDownload = () => {
+    const link = document.createElement("a")
+    link.download = filename
+    link.href = url
+    link.click()
+  }
 
   return (
     <div
@@ -1225,26 +1229,36 @@ function SaveImageModal({ url, onClose }: { url: string; onClose: () => void }) 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-center">
-          <h3 className="font-mono text-base font-medium text-foreground">Save to Camera Roll</h3>
-          <p className="mt-1 font-sans text-sm text-muted-foreground">{instruction}</p>
+          <h3 className="font-mono text-base font-medium text-foreground">Save Image</h3>
+          <p className="mt-1 font-sans text-sm text-muted-foreground">
+            Hold down on the image to save it to your photos.
+          </p>
         </div>
 
-        {/* The image — fills available width; user long-presses this */}
-        <div className="flex items-center justify-center overflow-hidden rounded-lg bg-black/10">
+        {/* The image — user long-presses this on mobile */}
+        <div className="flex items-center justify-center overflow-hidden rounded-lg bg-black/10 p-3">
           <img
             src={url}
             alt="Your drank receipt"
-            className="max-h-[55vh] w-full object-contain"
+            className="max-h-[52vh] w-full object-contain"
             draggable={false}
           />
         </div>
 
-        <button
-          onClick={onClose}
-          className="font-mono text-sm text-muted-foreground transition-colors hover:opacity-70"
-        >
-          Done
-        </button>
+        <div className="flex flex-col items-center gap-2">
+          <button
+            onClick={onClose}
+            className="font-mono text-sm text-foreground transition-colors hover:opacity-70"
+          >
+            Done
+          </button>
+          <button
+            onClick={handleBrowserDownload}
+            className="font-sans text-xs text-muted-foreground underline transition-colors hover:opacity-70"
+          >
+            download to browser instead
+          </button>
+        </div>
       </div>
     </div>
   )
