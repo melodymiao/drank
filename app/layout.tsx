@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Instrument_Sans, IBM_Plex_Mono } from "next/font/google"
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import './globals.css'
 
 const _instrumentSans = Instrument_Sans({ variable: "--font-instrument-sans", subsets: ["latin"], weight: ["400", "500", "600"] })
@@ -34,6 +35,7 @@ export default function RootLayout({
       <body suppressHydrationWarning className={`${_instrumentSans.variable} ${_ibmPlexMono.variable} font-sans antialiased`}>
         {children}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )
