@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils"
 import { forwardRef } from "react"
 
-export type OptionColorScheme = "green" | "blue"
+export type OptionColorScheme = "green" | "blue" | "pink"
 
 interface OptionButtonProps {
   label: string
@@ -11,6 +11,7 @@ interface OptionButtonProps {
   colorScheme: OptionColorScheme
   onClick: () => void
   className?: string
+  disabled?: boolean
 }
 
 const colorStyles = {
@@ -22,10 +23,14 @@ const colorStyles = {
     selected: "bg-[#9BCFEC] border-[#9BCFEC] text-foreground",
     notSelected: "bg-[#9BCFEC]/25 border-[#9BCFEC] text-[#57A0CA]",
   },
+  pink: {
+    selected: "bg-[#F884A3] border-[#F884A3] text-foreground",
+    notSelected: "bg-[#F884A3]/25 border-[#F884A3] text-[#CB446A]",
+  },
 }
 
 export const OptionButton = forwardRef<HTMLButtonElement, OptionButtonProps>(
-  ({ label, selected, colorScheme, onClick, className }, ref) => {
+  ({ label, selected, colorScheme, onClick, className, disabled }, ref) => {
     const styles = colorStyles[colorScheme]
 
     return (
@@ -33,9 +38,11 @@ export const OptionButton = forwardRef<HTMLButtonElement, OptionButtonProps>(
         ref={ref}
         type="button"
         onClick={onClick}
+        disabled={disabled}
         className={cn(
           "rounded-md border-2 px-2 py-3 font-mono text-sm font-medium transition-all text-center",
           "hover:scale-[1.02] active:scale-[0.98]",
+          "disabled:cursor-not-allowed disabled:opacity-30",
           selected ? styles.selected : styles.notSelected,
           className
         )}
@@ -59,8 +66,9 @@ interface OptionInputProps {
   colorScheme: OptionColorScheme
   placeholder?: string
   className?: string
-  onSelect: () => void    // called when input is clicked/focused to select "other"
-  onDeselect: () => void  // called to deselect "other"
+  onSelect: () => void
+  onDeselect: () => void
+  disabled?: boolean
 }
 
 const inputColorStyles = {
@@ -74,6 +82,11 @@ const inputColorStyles = {
     notSelectedEmpty: "bg-transparent border-[#9BCFEC] text-[#57A0CA]/25 placeholder:text-[#57A0CA]/25",
     notSelectedFilled: "bg-transparent border-[#9BCFEC] text-[#57A0CA] placeholder:text-[#57A0CA]/25",
   },
+  pink: {
+    selected: "bg-[#F884A3] border-[#F884A3] text-foreground placeholder:text-[#CB446A]/60",
+    notSelectedEmpty: "bg-transparent border-[#F884A3] text-[#CB446A]/25 placeholder:text-[#CB446A]/25",
+    notSelectedFilled: "bg-transparent border-[#F884A3] text-[#CB446A] placeholder:text-[#CB446A]/25",
+  },
 }
 
 export function OptionInput({
@@ -85,6 +98,7 @@ export function OptionInput({
   className,
   onSelect,
   onDeselect,
+  disabled,
 }: OptionInputProps) {
   const styles = inputColorStyles[colorScheme]
 
@@ -101,19 +115,19 @@ export function OptionInput({
       value={value}
       onChange={(e) => {
         onChange(e.target.value)
-        // auto-select "other" as soon as user types something
         if (e.target.value && !selected) {
           onSelect()
         }
       }}
       onFocus={() => {
-        // clicking into the input selects it (preserving any existing text)
         onSelect()
       }}
       placeholder={placeholder}
+      disabled={disabled}
       className={cn(
         "rounded-md border-2 px-6 py-3 font-mono text-sm font-medium transition-all text-center",
         "outline-none focus:ring-2 focus:ring-offset-1",
+        "disabled:cursor-not-allowed disabled:opacity-30",
         colorScheme === "green" ? "focus:ring-[#A7A442]/30" : "focus:ring-[#57A0CA]/30",
         stateStyle,
         className
@@ -138,6 +152,7 @@ interface OptionGroupProps {
   onOtherChange?: (value: string) => void
   columns?: 2 | 3
   className?: string
+  disabled?: boolean
 }
 
 export function OptionGroup({
@@ -151,12 +166,13 @@ export function OptionGroup({
   onOtherChange,
   columns = 2,
   className,
+  disabled = false,
 }: OptionGroupProps) {
   const isOtherSelected = value === "other"
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
-      <span className="text-sm font-semibold text-foreground">{label}</span>
+    <div className={cn("flex flex-col gap-2", disabled && "opacity-40 pointer-events-none", className)}>
+      {label && <span className="text-sm font-semibold text-foreground">{label}</span>}
       <div
         className={cn(
           "grid gap-2",
@@ -169,8 +185,8 @@ export function OptionGroup({
             label={option}
             selected={value === option.toLowerCase()}
             colorScheme={colorScheme}
+            disabled={disabled}
             onClick={() => {
-              // deselect if already selected, otherwise select
               if (value === option.toLowerCase()) {
                 onChange("")
               } else {
@@ -188,6 +204,7 @@ export function OptionGroup({
             selected={isOtherSelected}
             colorScheme={colorScheme}
             placeholder="Other"
+            disabled={disabled}
             onSelect={() => onChange("other")}
             onDeselect={() => onChange("")}
           />

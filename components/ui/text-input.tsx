@@ -63,7 +63,7 @@ function TextInput({
         >
           {label}
           {required && (
-            <span className="ml-1 text-destructive">*</span>
+            <span className="ml-1 text-pink-dark">*</span>
           )}
         </label>
       )}
@@ -99,7 +99,7 @@ function TextInput({
           onBlur={onBlur}
           maxLength={maxLength}
           disabled={disabled}
-          className={cn(baseFieldStyles, "min-h-[80px] max-h-[120px] resize-none overflow-y-auto")}
+          className={cn(baseFieldStyles, "min-h-[120px] resize-none")}
           aria-invalid={!!error}
           aria-describedby={error ? `${inputId}-error` : undefined}
           required={required}

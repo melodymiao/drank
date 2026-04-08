@@ -1,13 +1,14 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { TextInput } from "@/components/ui/text-input"
 import { OptionGroup } from "@/components/ui/option-button"
 import { ToppingTags } from "@/components/ui/topping-tags"
-import { ArrowLeft, ChevronUp, ChevronDown } from "lucide-react"
+import { ArrowLeft, ChevronUp, ChevronDown, MapPin, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ERRORS, pickError } from "@/lib/errors"
+import { RatingSlider } from "@/components/ui/rating-slider"
 
 export interface ReceiptData {
   cafeName: string
@@ -19,7 +20,9 @@ export interface ReceiptData {
   time: string
   iceTemp: string
   iceLevel: string
+  otherIceLevel: string
   sugarLevel: string
+  otherSugarLevel: string
   milk: string
   otherMilk: string
   toppings: string[]
@@ -47,48 +50,316 @@ interface DecorateStepProps {
 
 type FormErrors = Partial<Record<keyof ReceiptData, string>>
 
+/* ================= Café Chain List ================= */
+
+const CAFE_CHAINS = [
+  "Starbucks", "Dunkin'", "Dutch Bros", "Peet's Coffee", "Philz Coffee",
+  "Blue Bottle Coffee", "Intelligentsia", "Verve Coffee", "Equator Coffees",
+  "Lavazza", "Costa Coffee", "Tim Hortons", "Caribou Coffee", "Biggby Coffee",
+  "The Coffee Bean & Tea Leaf", "Panera Bread", "McDonald's", "Chick-fil-A",
+  // Boba / tea / matcha chains
+  "Gong Cha", "Tiger Sugar", "HEYTEA", "Boba Guys", "Tea Do", "Matcha Cafe Maiko",
+  "Binge Coffee House", "HINAR Dessert Bar & Café", "LABORA", "3CAT", "3CAT Handcrafted Beverage",
+  "CHAGEE Modern Teahouse", "CHAGEE", "Easy Does It", "yun tea house", "Sunright Tea Studio",
+  "OMOMO TEA SHOPPE", "BOPOMOFO CAFE", "Junbi Matcha & Tea", "Kiss of Matcha", 
+  "Boba Guys", 
+  "Yi Fang", "Presotea", "Kung Fu Tea", "Sharetea", "Tastea", "Quickly",
+  "Ding Tea", "Happy Lemon", "Coco Fresh Tea & Juice", "Koi Thé",
+  "Tealive", "Moge Tee", "Boba Story", "85°C Bakery Cafe",
+  "Cafe Gratitude", "Urth Caffé", "Alfred Coffee", "Groundwork Coffee",
+  "Caffe Luxxe", "Jones Coffee Roasters", "Dayglow",
+]
+
+/* ================= Location Autocomplete ================= */
+
+const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""
+
+function LocationInput({
+  value,
+  onChange,
+  imageExifLocation,
+}: {
+  value: string
+  onChange: (val: string) => void
+  imageExifLocation?: string | null
+}) {
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [geoLoading, setGeoLoading] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const sessionTokenRef = useRef<string>(crypto.randomUUID())
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  const fetchSuggestions = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setSuggestions([])
+      setOpen(false)
+      return
+    }
+
+    setLoading(true)
+    try {
+      if (GOOGLE_MAPS_API_KEY) {
+        const res = await fetch(
+          `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&types=(cities)&sessiontoken=${sessionTokenRef.current}&key=${GOOGLE_MAPS_API_KEY}`
+        )
+        const json = await res.json()
+        const results = (json.predictions || []).map(
+          (p: { description: string }) => p.description
+        )
+        setSuggestions(results.slice(0, 5))
+        setOpen(results.length > 0)
+      }
+    } catch {
+      setSuggestions([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    onChange(val)
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 300)
+  }
+
+  const handleSelect = (suggestion: string) => {
+    onChange(suggestion)
+    setOpen(false)
+    setSuggestions([])
+    // Rotate session token after selection (billing best practice)
+    sessionTokenRef.current = crypto.randomUUID()
+  }
+
+  const handleGeolocate = async () => {
+    if (!navigator.geolocation) return
+    setGeoLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          if (GOOGLE_MAPS_API_KEY) {
+            const res = await fetch(
+              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&result_type=locality&key=${GOOGLE_MAPS_API_KEY}`
+            )
+            const json = await res.json()
+            const city = json.results?.[0]?.address_components?.find(
+              (c: { types: string[] }) => c.types.includes("locality")
+            )?.long_name
+            if (city) onChange(city)
+          }
+        } catch {
+          // silently fail
+        } finally {
+          setGeoLoading(false)
+        }
+      },
+      () => setGeoLoading(false)
+    )
+  }
+
+  return (
+    <div ref={containerRef} className="relative flex flex-col gap-1.5">
+      <div className="flex items-center justify-between">
+        <label className="text-sm font-semibold text-foreground">Location / City</label>
+        <div className="flex items-center gap-2">
+          {imageExifLocation && !value && (
+            <button
+              type="button"
+              onClick={() => onChange(imageExifLocation)}
+              className="flex items-center gap-1 font-sans text-xs text-green-dark transition-colors hover:opacity-70"
+            >
+              <MapPin className="size-3" />
+              Use photo location
+            </button>
+          )}
+          {GOOGLE_MAPS_API_KEY && (
+            <button
+              type="button"
+              onClick={handleGeolocate}
+              disabled={geoLoading}
+              className="flex items-center gap-1 font-sans text-xs text-green-dark transition-colors hover:opacity-70 disabled:opacity-40"
+            >
+              {geoLoading ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <MapPin className="size-3" />
+              )}
+              {geoLoading ? "Detecting..." : "Use my location"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <input
+        type="text"
+        placeholder="Del Mar"
+        value={value}
+        onChange={handleChange}
+        onFocus={() => { if (suggestions.length > 0) setOpen(true) }}
+        maxLength={40}
+        className={cn(
+          "w-full rounded-lg border-2 border-border bg-secondary px-4 py-3",
+          "font-mono text-sm text-foreground placeholder:text-muted-foreground",
+          "outline-none transition-all duration-200",
+          "focus:border-foreground/50 focus:ring-2 focus:ring-foreground/5"
+        )}
+      />
+
+      {open && suggestions.length > 0 && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-border bg-card shadow-md">
+          {loading && (
+            <div className="flex items-center gap-2 px-4 py-2 text-xs text-muted-foreground font-mono">
+              <Loader2 className="size-3 animate-spin" /> Searching…
+            </div>
+          )}
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(s) }}
+              className="flex w-full items-center px-4 py-2.5 text-left font-mono text-sm text-foreground transition-colors hover:bg-secondary"
+            >
+              <MapPin className="mr-2 size-3 shrink-0 text-muted-foreground" />
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ================= Café Name Autocomplete ================= */
+
+function CafeInput({
+  value,
+  onChange,
+  error,
+  pastEntries,
+}: {
+  value: string
+  onChange: (val: string) => void
+  error?: string
+  pastEntries: string[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    onChange(val)
+
+    if (!val || val.length < 1) {
+      setSuggestions([])
+      setOpen(false)
+      return
+    }
+
+    const query = val.toLowerCase()
+    // Combine past entries (deduplicated) + chain list, filter by prefix
+    const all = [...new Set([...pastEntries, ...CAFE_CHAINS])]
+    const matches = all
+      .filter((c) => c.toLowerCase().includes(query) && c.toLowerCase() !== query)
+      .slice(0, 6)
+    setSuggestions(matches)
+    setOpen(matches.length > 0)
+  }
+
+  const handleSelect = (suggestion: string) => {
+    onChange(suggestion)
+    setOpen(false)
+    setSuggestions([])
+  }
+
+  return (
+    <div ref={containerRef} className="relative flex flex-col gap-1.5">
+      <label className="text-sm font-semibold text-foreground">
+        Cafe / Spot
+        <span className="ml-1 text-pink-dark">*</span>
+      </label>
+
+      <input
+        type="text"
+        placeholder="HeyTea"
+        value={value}
+        onChange={handleChange}
+        onFocus={() => { if (suggestions.length > 0) setOpen(true) }}
+        maxLength={40}
+        className={cn(
+          "w-full rounded-lg border-2 border-border bg-secondary px-4 py-3",
+          "font-mono text-sm text-foreground placeholder:text-muted-foreground",
+          "outline-none transition-all duration-200",
+          "focus:border-foreground/50 focus:ring-2 focus:ring-foreground/5",
+          error && "border-destructive"
+        )}
+      />
+
+      {open && suggestions.length > 0 && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-border bg-card shadow-md">
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); handleSelect(s) }}
+              className="flex w-full items-center px-4 py-2.5 text-left font-mono text-sm text-foreground transition-colors hover:bg-secondary"
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <p className="text-xs text-destructive font-sans">{error}</p>
+      )}
+    </div>
+  )
+}
+
+/* ================= Main Component ================= */
+
 export function DecorateStep({
   data,
+  image,
   onUpdate,
   onNext,
   onBack,
 }: DecorateStepProps) {
-  // Desktop: only one section open at a time (accordion). Mobile: both start open, each toggles independently.
   const [openSection, setOpenSection] = useState<"basics" | "customizations" | null>("basics")
-  const [mobileOpenSections, setMobileOpenSections] = useState<Set<"basics" | "customizations">>(
-    new Set(["basics", "customizations"])
-  )
   const [errors, setErrors] = useState<FormErrors>({})
-
-  const outerRef = useRef<HTMLDivElement>(null)
+  // In a real app these would come from localStorage; here we seed from a static list
+  const [pastCafeEntries] = useState<string[]>([])
+  // EXIF location extracted from image (placeholder — page.tsx would pass this via prop in practice)
+  const [exifLocation] = useState<string | null>(null)
 
   const toggleSection = (section: "basics" | "customizations") => {
     setOpenSection(openSection === section ? null : section)
-  }
-
-  const toggleMobileSection = (section: "basics" | "customizations") => {
-    setMobileOpenSections((prev) => {
-      const next = new Set(prev)
-      if (next.has(section)) next.delete(section)
-      else next.add(section)
-      return next
-    })
-  }
-
-  const formatRating = (val: string) => {
-    const num = parseFloat(val)
-    if (isNaN(num)) return ""
-    const clamped = Math.min(10, Math.max(0, num))
-    return clamped.toFixed(1)
-  }
-
-  const handleRatingBlur = () => {
-    if (data.rating) {
-      const formatted = formatRating(data.rating)
-      onUpdate({ rating: formatted })
-      // Clear range error if it's now valid
-      if (formatted) setErrors((prev) => ({ ...prev, rating: undefined }))
-    }
   }
 
   const validate = (): boolean => {
@@ -120,12 +391,7 @@ export function DecorateStep({
     setErrors(next)
 
     if (Object.keys(next).length > 0) {
-      // Open BASICS accordion so the user can see the errors
       setOpenSection("basics")
-      setMobileOpenSections((prev) => new Set([...prev, "basics"]))
-      // Scroll to top — mobile: page scroll, desktop: right column internal scroll
-      window.scrollTo({ top: 0 })
-      outerRef.current?.scrollTo({ top: 0 })
       return false
     }
     return true
@@ -135,22 +401,28 @@ export function DecorateStep({
     if (validate()) onNext()
   }
 
-  // Clear a field's error as soon as the user starts typing
   const clearError = (field: keyof ReceiptData) => {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }))
   }
 
   return (
-    <div ref={outerRef} className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
+    <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
       <div className="mx-auto flex w-full max-w-[1100px] flex-col px-4 pt-3 md:h-full md:overflow-hidden md:px-6">
-        {/* Mobile: natural page scroll. Desktop: fully fixed, no page scroll */}
         <div className="flex flex-col md:h-full md:flex-row md:gap-8 md:overflow-hidden">
 
-          {/* Left column — desktop only (receipt preview + finish button) */}
-          <div className="hidden md:flex md:h-full md:w-[400px] md:min-h-0 md:flex-col">
+          {/* Left column */}
+          <div className="flex flex-col md:h-full md:w-[400px] md:min-h-0">
 
-            {/* Row 1: Back button — h-[40px] matches share-step back button row */}
-            <div className="h-[40px] shrink-0 items-center flex">
+            {/* Back button — mobile */}
+            <button
+              onClick={onBack}
+              className="mb-4 flex shrink-0 items-center gap-1.5 self-start py-2 font-sans text-sm text-green-dark transition-colors hover:opacity-70 md:hidden"
+            >
+              <ArrowLeft className="size-4" />
+              Back
+            </button>
+            {/* Back button — desktop */}
+            <div className="hidden h-[40px] shrink-0 items-center md:flex">
               <button
                 onClick={onBack}
                 className="flex items-center gap-1.5 font-sans text-sm text-green-dark transition-colors hover:opacity-70"
@@ -160,13 +432,13 @@ export function DecorateStep({
               </button>
             </div>
 
-            {/* Row 2: Canvas — flex-1, receipt centered */}
+            {/* Receipt preview */}
             <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
               <ReceiptPreview data={data} />
             </div>
 
-            {/* Row 3: Bottom section — fixed h-[120px], same as share-step. */}
-            <div className="h-[120px] shrink-0 flex flex-col items-center justify-end pb-16">
+            {/* Desktop bottom button */}
+            <div className="hidden h-[120px] shrink-0 flex-col items-center justify-end pb-16 md:flex">
               <Button
                 size="lg"
                 className="w-full max-w-[200px] bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
@@ -178,51 +450,27 @@ export function DecorateStep({
             </div>
           </div>
 
-          {/* Right column - Accordion sections (full width on mobile, flex-1 on desktop) */}
-          <div className="flex flex-col gap-3 pb-28 pt-0 md:min-h-0 md:flex-1 md:overflow-hidden md:pb-6">
-
-            {/* Mobile back button — top of form, only on mobile */}
-            <button
-              onClick={onBack}
-              className="mb-1 flex shrink-0 items-center gap-1.5 self-start py-2 font-sans text-sm text-green-dark transition-colors hover:opacity-70 md:hidden"
-            >
-              <ArrowLeft className="size-4" />
-              Back
-            </button>
-
-            {/* BASICS — desktop: single accordion. Mobile: independently toggleable, starts open */}
+          {/* Right column — accordion */}
+          <div className="flex flex-col gap-3 pb-24 pt-4 md:min-h-0 md:flex-1 md:overflow-hidden md:pb-6 md:pt-0">
             <AccordionSection
               title="BASICS"
               isOpen={openSection === "basics"}
-              mobileIsOpen={mobileOpenSections.has("basics")}
               onToggle={() => toggleSection("basics")}
-              onMobileToggle={() => toggleMobileSection("basics")}
             >
               <div className="flex flex-col gap-4">
-                <TextInput
-                  label="Rank"
-                  placeholder="10.0"
+                {/* Rating slider */}
+                <RatingSlider
                   value={data.rating}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9.]/g, "")
-                    const parts = val.split(".")
-                    const sanitized = parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : val
-                    onUpdate({ rating: sanitized })
-                    clearError("rating")
-                  }}
-                  onBlur={handleRatingBlur}
+                  onChange={(val) => { onUpdate({ rating: val }); clearError("rating") }}
                   error={errors.rating}
-                  required
                 />
 
-                <TextInput
-                  label="Cafe / Spot"
-                  placeholder="HeyTea"
+                {/* Café name with autocomplete */}
+                <CafeInput
                   value={data.cafeName}
-                  onChange={(e) => { onUpdate({ cafeName: e.target.value }); clearError("cafeName") }}
-                  maxLength={30}
+                  onChange={(val) => { onUpdate({ cafeName: val }); clearError("cafeName") }}
                   error={errors.cafeName}
-                  required
+                  pastEntries={pastCafeEntries}
                 />
 
                 <TextInput
@@ -235,30 +483,28 @@ export function DecorateStep({
                   required
                 />
 
-                <TextInput
-                  label="Location / City"
-                  placeholder="Del Mar"
+                {/* Location with autocomplete */}
+                <LocationInput
                   value={data.location}
-                  onChange={(e) => onUpdate({ location: e.target.value })}
-                  maxLength={30}
+                  onChange={(val) => onUpdate({ location: val })}
+                  imageExifLocation={exifLocation}
                 />
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* Date + Time side by side */}
+                <div className="grid grid-cols-2 gap-3">
                   <TextInput
                     label="Date"
-                      type="date"
-                      placeholder="YYYY / MM / DD"
-                      value={data.date}
-                      onChange={(e) => { onUpdate({ date: e.target.value }); clearError("date") }}
+                    type="date"
+                    value={data.date}
+                    onChange={(e) => { onUpdate({ date: e.target.value }); clearError("date") }}
                     error={errors.date}
                     required
                   />
                   <TextInput
                     label="Time"
-                      type="time"
-                      placeholder="12:01 PM"
-                      value={data.time}
-                      onChange={(e) => { onUpdate({ time: e.target.value }); clearError("time") }}
+                    type="time"
+                    value={data.time}
+                    onChange={(e) => { onUpdate({ time: e.target.value }); clearError("time") }}
                     error={errors.time}
                     required
                   />
@@ -273,7 +519,7 @@ export function DecorateStep({
                     variant="long"
                     maxLength={150}
                   />
-                  <span className="mt-1 block text-right font-mono text-[10px] text-muted-foreground">
+                  <span className="-mt-1 block text-right font-mono text-[10px] text-muted-foreground">
                     {data.comments.length}/150
                   </span>
                 </div>
@@ -283,11 +529,10 @@ export function DecorateStep({
             <AccordionSection
               title="CUSTOMIZATIONS"
               isOpen={openSection === "customizations"}
-              mobileIsOpen={mobileOpenSections.has("customizations")}
               onToggle={() => toggleSection("customizations")}
-              onMobileToggle={() => toggleMobileSection("customizations")}
             >
               <div className="flex flex-col gap-4">
+                {/* Iced / Hot toggle */}
                 <OptionGroup
                   label=""
                   options={["Iced", "Hot"]}
@@ -295,43 +540,56 @@ export function DecorateStep({
                   onChange={(val) => {
                     onUpdate({ iceTemp: val })
                     if (val === "hot") {
-                      onUpdate({ iceLevel: "" })
+                      onUpdate({ iceLevel: "", otherIceLevel: "" })
                     }
                   }}
-                  colorScheme="green"
+                  colorScheme="blue"
                   columns={2}
                 />
 
-                <TextInput
+                {/* Ice level chips */}
+                <OptionGroup
                   label="Ice Level"
-                  placeholder="Light, 25%, Regular"
+                  options={["No Ice", "Light", "Less", "Regular", "Extra"]}
                   value={data.iceLevel}
-                  onChange={(e) => onUpdate({ iceLevel: e.target.value })}
-                  maxLength={30}
+                  onChange={(val) => {
+                    onUpdate({ iceLevel: val })
+                    if (val !== "other") onUpdate({ otherIceLevel: "" })
+                  }}
+                  colorScheme="blue"
+                  columns={3}
+                  withOther
+                  otherValue={data.otherIceLevel}
+                  onOtherChange={(val) => onUpdate({ otherIceLevel: val })}
                   disabled={data.iceTemp === "hot"}
-                  innerLabel="Ice"
                 />
 
-                <TextInput
+                {/* Sugar level chips */}
+                <OptionGroup
                   label="Sugar Level"
-                  placeholder="Half, 50%, Extra"
+                  options={["0%", "25%", "50%", "75%", "100%"]}
                   value={data.sugarLevel}
-                  onChange={(e) => onUpdate({ sugarLevel: e.target.value })}
-                  maxLength={30}
-                  innerLabel="Sugar"
+                  onChange={(val) => {
+                    onUpdate({ sugarLevel: val })
+                    if (val !== "other") onUpdate({ otherSugarLevel: "" })
+                  }}
+                  colorScheme="green"
+                  columns={3}
+                  withOther
+                  otherValue={data.otherSugarLevel}
+                  onOtherChange={(val) => onUpdate({ otherSugarLevel: val })}
                 />
 
+                {/* Milk base */}
                 <OptionGroup
                   label="Milk Base"
                   options={["Whole", "Oat", "Soy", "Almond"]}
                   value={data.milk}
                   onChange={(val) => {
                     onUpdate({ milk: val })
-                    if (val !== "other") {
-                      onUpdate({ otherMilk: "" })
-                    }
+                    if (val !== "other") onUpdate({ otherMilk: "" })
                   }}
-                  colorScheme="blue"
+                  colorScheme="green"
                   columns={3}
                   withOther
                   otherValue={data.otherMilk}
@@ -359,16 +617,15 @@ export function DecorateStep({
       </div>
 
       {/* Mobile fixed bottom button */}
-      {/* Mobile fixed bottom button — full width, no background */}
       <div className="fixed inset-x-0 bottom-0 z-20 p-4 md:hidden">
-      <Button
-  size="lg"
-  className="w-full bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
-  style={{ paddingTop: 24, paddingBottom: 24 }}
-  onClick={handleNext}
->
-  Finish Ranking
-</Button>
+        <Button
+          size="lg"
+          className="w-full bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
+          style={{ paddingTop: 24, paddingBottom: 24 }}
+          onClick={handleNext}
+        >
+          Finish Ranking
+        </Button>
       </div>
     </div>
   )
@@ -379,48 +636,20 @@ export function DecorateStep({
 function AccordionSection({
   title,
   isOpen,
-  mobileIsOpen,
   onToggle,
-  onMobileToggle,
   children,
 }: {
   title: string
   isOpen: boolean
-  mobileIsOpen?: boolean
   onToggle: () => void
-  onMobileToggle?: () => void
   children: React.ReactNode
 }) {
-  const mobileOpen = mobileIsOpen ?? isOpen
   return (
     <div className={cn(
       "flex flex-col rounded-xl border border-border bg-card overflow-hidden",
       isOpen && "md:min-h-0 md:flex-1"
     )}>
-      {/* Mobile header — independently toggleable, no sticky */}
-      <div className="block md:hidden">
-        <button
-          onClick={onMobileToggle ?? onToggle}
-          className="flex w-full items-center justify-between px-4 py-3"
-        >
-          <div className="flex flex-col items-start">
-            <span className={cn(
-              "font-mono text-xs font-semibold uppercase tracking-widest text-green-dark transition-opacity",
-              !mobileOpen && "opacity-50"
-            )}>
-              {title}
-            </span>
-            {mobileOpen && <SquigglyUnderline title={title} />}
-          </div>
-          {mobileOpen
-            ? <ChevronUp className="size-5 text-muted-foreground" />
-            : <ChevronDown className="size-5 text-muted-foreground" />}
-        </button>
-        {mobileOpen && <div className="mx-4 border-t border-dashed border-border" />}
-      </div>
-
-      {/* Desktop header — single-accordion behavior */}
-      <div className="hidden md:block">
+      <div className="sticky top-0 z-10 shrink-0 rounded-t-xl border-b border-transparent bg-card md:static md:border-0">
         <button
           onClick={onToggle}
           className="flex w-full items-center justify-between px-4 py-3"
@@ -432,23 +661,27 @@ function AccordionSection({
             )}>
               {title}
             </span>
-            {isOpen && <SquigglyUnderline title={title} />}
+            {isOpen && (
+              <SquigglyUnderline title={title} />
+            )}
           </div>
-          {isOpen
-            ? <ChevronUp className="size-5 text-muted-foreground" />
-            : <ChevronDown className="size-5 text-muted-foreground" />}
+          {isOpen ? (
+            <ChevronUp className="size-5 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="size-5 text-muted-foreground" />
+          )}
         </button>
-        {isOpen && <div className="mx-4 border-t border-dashed border-border" />}
+
+        {isOpen && (
+          <div className="mx-4 border-t border-dashed border-border" />
+        )}
       </div>
 
-      {/* Mobile content — shows when mobileOpen */}
-      <div className={cn("p-4 pb-6 md:hidden", !mobileOpen && "hidden")}>
-        {children}
-      </div>
-      {/* Desktop content — shows when isOpen */}
-      <div className={cn("hidden p-4 pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto", isOpen ? "md:block" : "md:hidden")}>
-        {children}
-      </div>
+      {isOpen && (
+        <div className="p-4 pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
+          {children}
+        </div>
+      )}
     </div>
   )
 }
@@ -494,50 +727,42 @@ function SquigglyUnderline({ title }: { title: string }) {
 
 const TEXT_COLOR = "#473C23"
 
-// Capitalizes the first letter, lowercases the rest
 function toTitleCase(str: string): string {
   if (!str) return ""
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
 }
 
-function ReceiptPreview({ data }: { data: ReceiptData }) {
-  // Build customizations — iceTemp first, then the rest
+export function ReceiptContent({ data, stickerImage }: { data: ReceiptData; stickerImage?: string | null }) {
   const customizations: string[] = []
 
-  if (data.iceTemp) {
-    customizations.push(toTitleCase(data.iceTemp))
+  if (data.iceTemp) customizations.push(toTitleCase(data.iceTemp))
+
+  // Prefer "Other" text if set, otherwise use the chip value
+  const iceLevelDisplay = data.iceLevel === "other" && data.otherIceLevel
+    ? data.otherIceLevel
+    : data.iceLevel
+  if (iceLevelDisplay && data.iceTemp !== "hot") {
+    customizations.push(`${toTitleCase(iceLevelDisplay)} Ice`)
   }
 
-  if (data.iceLevel) {
-    customizations.push(`${toTitleCase(data.iceLevel)} Ice`)
+  const sugarLevelDisplay = data.sugarLevel === "other" && data.otherSugarLevel
+    ? data.otherSugarLevel
+    : data.sugarLevel
+  if (sugarLevelDisplay) {
+    customizations.push(`${toTitleCase(sugarLevelDisplay)} Sugar`)
   }
 
-  if (data.sugarLevel) {
-    customizations.push(`${toTitleCase(data.sugarLevel)} Sugar`)
-  }
+  const milkDisplay = data.milk === "other" && data.otherMilk ? data.otherMilk : data.milk
+  if (milkDisplay) customizations.push(`${toTitleCase(milkDisplay)} Milk`)
 
-  const milkDisplay = data.milk === "other" && data.otherMilk
-    ? data.otherMilk
-    : data.milk
-  if (milkDisplay) {
-    customizations.push(`${toTitleCase(milkDisplay)} Milk`)
-  }
+  if (data.toppings.length > 0) customizations.push(...data.toppings.map(toTitleCase))
+  if (data.otherCustomizations) customizations.push(toTitleCase(data.otherCustomizations))
 
-  if (data.toppings.length > 0) {
-    customizations.push(...data.toppings.map(toTitleCase))
-  }
-
-  if (data.otherCustomizations) {
-    customizations.push(toTitleCase(data.otherCustomizations))
-  }
-
-  // Format date as YYYYMMDD
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "YYYYMMDD"
     return dateStr.replace(/-/g, "")
   }
 
-  // Format time as 12:00 AM
   const formatTime = (timeStr: string) => {
     if (!timeStr) return "12:00 AM"
     const [hours, minutes] = timeStr.split(":")
@@ -548,12 +773,81 @@ function ReceiptPreview({ data }: { data: ReceiptData }) {
   }
 
   return (
-    // Mobile: scale down to fit screen width. Desktop: fixed at 359×522.
+    <>
+      {/* Rating circle */}
+      <div className="mb-3 flex justify-center">
+        <div
+          className="flex size-14 items-center justify-center rounded-full border-2"
+          style={{ borderColor: TEXT_COLOR }}
+        >
+          <span className="font-mono text-lg font-normal" style={{ color: TEXT_COLOR }}>
+            {data.rating || "5.0"}
+          </span>
+        </div>
+      </div>
+
+      {/* Cafe name */}
+      <p className="mb-3 text-center font-mono text-xs font-medium" style={{ color: TEXT_COLOR }}>
+        {data.cafeName || "Cafe"}
+      </p>
+
+      {/* Drink name */}
+      <h3 className="mb-3 text-center font-mono text-lg font-medium leading-tight" style={{ color: TEXT_COLOR }}>
+        {data.drinkName || "Beverage"}
+      </h3>
+
+      {/* Customizations */}
+      {customizations.length > 0 && (
+        <p className="mb-3 text-center font-mono text-xs font-medium" style={{ color: TEXT_COLOR }}>
+          {customizations.join(", ")}
+        </p>
+      )}
+
+      {/* Drink sticker */}
+      {stickerImage && (
+        <div className="my-3 flex justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={stickerImage} alt="drink" className="max-h-32 object-contain" />
+        </div>
+      )}
+
+      {/* Notes */}
+      {data.comments && (
+        <p className="mb-3 font-mono text-xs font-light" style={{ color: TEXT_COLOR }}>
+          Notes: {data.comments}
+        </p>
+      )}
+
+      {/* Location */}
+      {data.location && (
+        <p className="font-mono text-xs font-light" style={{ color: TEXT_COLOR }}>
+          {data.location}
+        </p>
+      )}
+
+      {/* Date/Time */}
+      <p className="mb-3 font-mono text-xs font-light" style={{ color: TEXT_COLOR }}>
+        {formatDate(data.date)} {formatTime(data.time)}
+      </p>
+
+      {/* Divider */}
+      <div className="mb-3 border-t" style={{ borderColor: TEXT_COLOR, opacity: 0.2 }} />
+
+      {/* Footer */}
+      <p className="text-center font-mono text-xs font-normal" style={{ color: TEXT_COLOR }}>
+        Ranked with <span className="font-medium">drank</span>
+      </p>
+    </>
+  )
+}
+
+function ReceiptPreview({ data }: { data: ReceiptData }) {
+  return (
     <div
       className="relative mx-auto flex items-center justify-center"
       style={{ width: "min(359px, 100%)", aspectRatio: "359 / 522" }}
     >
-      {/* Squiggly border — scales with wrapper on mobile */}
+      {/* Squiggly border */}
       <div className="absolute inset-0 pointer-events-none">
         <svg
           viewBox="0 0 359 522"
@@ -573,93 +867,12 @@ function ReceiptPreview({ data }: { data: ReceiptData }) {
       <div
         className="shake-on-hover relative rounded-sm px-5 py-6 shadow-md md:w-[280px]"
         style={{
-          width: "78%", // ~280/359 — matches the desktop proportion at any scale
+          width: "78%",
           transform: "rotate(1deg)",
           backgroundColor: "#FEFCF4",
         }}
       >
-        {/* Rating circle */}
-        <div className="mb-3 flex justify-center">
-          <div
-            className="flex size-14 items-center justify-center rounded-full border-2"
-            style={{ borderColor: TEXT_COLOR }}
-          >
-            <span
-              className="font-mono text-lg font-normal"
-              style={{ color: TEXT_COLOR }}
-            >
-              {data.rating || "10.0"}
-            </span>
-          </div>
-        </div>
-
-        {/* Cafe name */}
-        <p
-          className="mb-3 break-words text-center font-mono text-xs font-medium"
-          style={{ color: TEXT_COLOR }}
-        >
-          {data.cafeName || "Cafe"}
-        </p>
-
-        {/* Drink name */}
-        <h3
-          className="mb-3 break-words text-center font-mono text-lg font-medium leading-tight"
-          style={{ color: TEXT_COLOR }}
-        >
-          {data.drinkName || "Beverage"}
-        </h3>
-
-        {/* Customizations - centered, one line, comma separated */}
-        {customizations.length > 0 && (
-          <p
-            className="mb-3 break-words text-center font-mono text-xs font-medium"
-            style={{ color: TEXT_COLOR }}
-          >
-            {customizations.join(", ")}
-          </p>
-        )}
-
-        {/* Notes */}
-        {data.comments && (
-          <p
-            className="mb-3 break-words font-mono text-xs font-light"
-            style={{ color: TEXT_COLOR }}
-          >
-            Notes: {data.comments}
-          </p>
-        )}
-
-        {/* Location */}
-        {data.location && (
-          <p
-            className="break-words font-mono text-xs font-light"
-            style={{ color: TEXT_COLOR }}
-          >
-            {data.location}
-          </p>
-        )}
-
-        {/* Date/Time */}
-        <p
-          className="mb-3 font-mono text-xs font-light"
-          style={{ color: TEXT_COLOR }}
-        >
-          {formatDate(data.date)} {formatTime(data.time)}
-        </p>
-
-        {/* Divider */}
-        <div
-          className="mb-3 border-t"
-          style={{ borderColor: TEXT_COLOR, opacity: 0.2 }}
-        />
-
-        {/* Footer */}
-        <p
-          className="text-center font-mono text-xs font-normal"
-          style={{ color: TEXT_COLOR }}
-        >
-          Ranked with <span className="font-medium">drank</span>
-        </p>
+        <ReceiptContent data={data} />
       </div>
     </div>
   )

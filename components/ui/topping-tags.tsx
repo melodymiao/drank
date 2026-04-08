@@ -16,7 +16,6 @@ export function ToppingTags({ label, value, onChange, className }: ToppingTagsPr
   const [editValue, setEditValue] = useState("")
 
   const handleAddClick = useCallback(() => {
-    // Add a new empty tag and enter edit mode
     const newIndex = value.length
     onChange([...value, ""])
     setEditingIndex(newIndex)
@@ -27,12 +26,10 @@ export function ToppingTags({ label, value, onChange, className }: ToppingTagsPr
     (index: number) => {
       const trimmed = editValue.trim()
       if (trimmed) {
-        // Confirm the tag
         const updated = [...value]
         updated[index] = trimmed
         onChange(updated)
       } else {
-        // Discard empty tag silently
         const updated = value.filter((_, i) => i !== index)
         onChange(updated)
       }
@@ -55,7 +52,6 @@ export function ToppingTags({ label, value, onChange, className }: ToppingTagsPr
         e.preventDefault()
         handleConfirmEdit(index)
       } else if (e.key === "Escape") {
-        // Discard on escape
         const updated = value.filter((_, i) => i !== index)
         onChange(updated)
         setEditingIndex(null)
@@ -104,7 +100,7 @@ function ConfirmedTag({
   onRemove: () => void
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-pink px-3 py-1 text-xs font-mono text-foreground">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E0DE96] px-3 py-1 text-xs font-mono text-foreground">
       {label}
       <button
         type="button"
@@ -125,7 +121,7 @@ function AddButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-full border-2 border-dashed border-pink-dark px-3 py-1 text-xs font-mono text-pink-dark hover:bg-pink-dark/10 transition-colors"
+      className="inline-flex items-center gap-1 rounded-full border-2 border-solid border-[#E0DE96] px-3 py-1 text-xs font-mono text-[#A7A442] hover:bg-[#E0DE96]/20 transition-colors"
     >
       + Add
     </button>
@@ -149,12 +145,10 @@ function EditingTag({
   const mirrorRef = useRef<HTMLSpanElement>(null)
   const [inputWidth, setInputWidth] = useState(60)
 
-  // Auto-focus on mount
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
-  // Mirror width measurement
   useEffect(() => {
     if (mirrorRef.current) {
       const width = mirrorRef.current.offsetWidth
@@ -165,11 +159,7 @@ function EditingTag({
   const hasText = value.length > 0
 
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border-2 border-solid border-pink-dark px-3 py-1"
-      )}
-    >
+    <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-solid border-[#E0DE96] bg-[#E0DE96] px-3 py-1">
       {/* Hidden mirror for measuring text width */}
       <span
         ref={mirrorRef}
@@ -188,12 +178,12 @@ function EditingTag({
         placeholder="Topping"
         className={cn(
           "bg-transparent text-xs font-mono outline-none",
-          hasText ? "text-foreground" : "text-pink placeholder:text-pink"
+          hasText ? "text-foreground" : "text-[#A7A442] placeholder:text-[#A7A442]/60"
         )}
         style={{ width: inputWidth }}
         maxLength={50}
       />
-      <X className="size-3.5 text-pink-dark opacity-50" />
+      <X className="size-3.5 text-foreground/50" />
     </span>
   )
 }
