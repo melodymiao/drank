@@ -351,15 +351,31 @@ export function DecorateStep({
   onNext,
   onBack,
 }: DecorateStepProps) {
+  // Desktop: one section open at a time. Mobile: both start open, toggle independently.
   const [openSection, setOpenSection] = useState<"basics" | "customizations" | null>("basics")
+  const [mobileOpenSections, setMobileOpenSections] = useState<Set<"basics" | "customizations">>(
+    new Set(["basics", "customizations"])
+  )
   const [errors, setErrors] = useState<FormErrors>({})
   // In a real app these would come from localStorage; here we seed from a static list
   const [pastCafeEntries] = useState<string[]>([])
   // EXIF location extracted from image (placeholder — page.tsx would pass this via prop in practice)
   const [exifLocation] = useState<string | null>(null)
 
+  // Ref for scroll-to-top on validation error
+  const outerRef = useRef<HTMLDivElement>(null)
+
   const toggleSection = (section: "basics" | "customizations") => {
     setOpenSection(openSection === section ? null : section)
+  }
+
+  const toggleMobileSection = (section: "basics" | "customizations") => {
+    setMobileOpenSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(section)) next.delete(section)
+      else next.add(section)
+      return next
+    })
   }
 
   const validate = (): boolean => {
@@ -392,6 +408,10 @@ export function DecorateStep({
 
     if (Object.keys(next).length > 0) {
       setOpenSection("basics")
+      setMobileOpenSections((prev) => new Set([...prev, "basics"]))
+      // Scroll to top on all screen sizes
+      window.scrollTo({ top: 0 })
+      outerRef.current?.scrollTo({ top: 0 })
       return false
     }
     return true
@@ -406,23 +426,15 @@ export function DecorateStep({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
+    <div ref={outerRef} className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
       <div className="mx-auto flex w-full max-w-[1100px] flex-col px-4 pt-3 md:h-full md:overflow-hidden md:px-6">
         <div className="flex flex-col md:h-full md:flex-row md:gap-8 md:overflow-hidden">
 
-          {/* Left column */}
-          <div className="flex flex-col md:h-full md:w-[400px] md:min-h-0">
+          {/* Left column — desktop only (receipt preview + finish button) */}
+          <div className="hidden md:flex md:h-full md:w-[400px] md:min-h-0 md:flex-col">
 
-            {/* Back button — mobile */}
-            <button
-              onClick={onBack}
-              className="mb-4 flex shrink-0 items-center gap-1.5 self-start py-2 font-sans text-sm text-green-dark transition-colors hover:opacity-70 md:hidden"
-            >
-              <ArrowLeft className="size-4" />
-              Back
-            </button>
             {/* Back button — desktop */}
-            <div className="hidden h-[40px] shrink-0 items-center md:flex">
+            <div className="h-[40px] shrink-0 flex items-center">
               <button
                 onClick={onBack}
                 className="flex items-center gap-1.5 font-sans text-sm text-green-dark transition-colors hover:opacity-70"
@@ -438,7 +450,7 @@ export function DecorateStep({
             </div>
 
             {/* Desktop bottom button */}
-            <div className="hidden h-[120px] shrink-0 flex-col items-center justify-end pb-16 md:flex">
+            <div className="h-[120px] shrink-0 flex flex-col items-center justify-end pb-16">
               <Button
                 size="lg"
                 className="w-full max-w-[200px] bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
@@ -450,12 +462,24 @@ export function DecorateStep({
             </div>
           </div>
 
-          {/* Right column — accordion */}
-          <div className="flex flex-col gap-3 pb-24 pt-4 md:min-h-0 md:flex-1 md:overflow-hidden md:pb-6 md:pt-0">
+          {/* Right column — accordion (full width on mobile, flex-1 on desktop) */}
+          <div className="flex flex-col gap-3 pb-28 pt-0 md:min-h-0 md:flex-1 md:overflow-hidden md:pb-6">
+
+            {/* Mobile back button */}
+            <button
+              onClick={onBack}
+              className="mb-1 flex shrink-0 items-center gap-1.5 self-start py-2 font-sans text-sm text-green-dark transition-colors hover:opacity-70 md:hidden"
+            >
+              <ArrowLeft className="size-4" />
+              Back
+            </button>
+
             <AccordionSection
               title="BASICS"
               isOpen={openSection === "basics"}
+              mobileIsOpen={mobileOpenSections.has("basics")}
               onToggle={() => toggleSection("basics")}
+              onMobileToggle={() => toggleMobileSection("basics")}
             >
               <div className="flex flex-col gap-4">
                 {/* Rating slider */}
@@ -490,8 +514,8 @@ export function DecorateStep({
                   imageExifLocation={exifLocation}
                 />
 
-                {/* Date + Time side by side */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Date + Time — stack on mobile, side by side on sm+ */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <TextInput
                     label="Date"
                     type="date"
@@ -519,7 +543,7 @@ export function DecorateStep({
                     variant="long"
                     maxLength={150}
                   />
-                  <span className="-mt-1 block text-right font-mono text-[10px] text-muted-foreground">
+                  <span className="mt-1 block text-right font-mono text-[10px] text-muted-foreground">
                     {data.comments.length}/150
                   </span>
                 </div>
@@ -529,7 +553,9 @@ export function DecorateStep({
             <AccordionSection
               title="CUSTOMIZATIONS"
               isOpen={openSection === "customizations"}
+              mobileIsOpen={mobileOpenSections.has("customizations")}
               onToggle={() => toggleSection("customizations")}
+              onMobileToggle={() => toggleMobileSection("customizations")}
             >
               <div className="flex flex-col gap-4">
                 {/* Iced / Hot toggle */}
@@ -636,20 +662,48 @@ export function DecorateStep({
 function AccordionSection({
   title,
   isOpen,
+  mobileIsOpen,
   onToggle,
+  onMobileToggle,
   children,
 }: {
   title: string
   isOpen: boolean
+  mobileIsOpen?: boolean
   onToggle: () => void
+  onMobileToggle?: () => void
   children: React.ReactNode
 }) {
+  const mobileOpen = mobileIsOpen ?? isOpen
   return (
     <div className={cn(
       "flex flex-col rounded-xl border border-border bg-card overflow-hidden",
       isOpen && "md:min-h-0 md:flex-1"
     )}>
-      <div className="sticky top-0 z-10 shrink-0 rounded-t-xl border-b border-transparent bg-card md:static md:border-0">
+      {/* Mobile header — independently toggleable */}
+      <div className="block md:hidden">
+        <button
+          onClick={onMobileToggle ?? onToggle}
+          className="flex w-full items-center justify-between px-4 py-3"
+        >
+          <div className="flex flex-col items-start">
+            <span className={cn(
+              "font-mono text-xs font-semibold uppercase tracking-widest text-green-dark transition-opacity",
+              !mobileOpen && "opacity-50"
+            )}>
+              {title}
+            </span>
+            {mobileOpen && <SquigglyUnderline title={title} />}
+          </div>
+          {mobileOpen
+            ? <ChevronUp className="size-5 text-muted-foreground" />
+            : <ChevronDown className="size-5 text-muted-foreground" />}
+        </button>
+        {mobileOpen && <div className="mx-4 border-t border-dashed border-border" />}
+      </div>
+
+      {/* Desktop header — single-accordion behavior */}
+      <div className="hidden md:block">
         <button
           onClick={onToggle}
           className="flex w-full items-center justify-between px-4 py-3"
@@ -661,27 +715,23 @@ function AccordionSection({
             )}>
               {title}
             </span>
-            {isOpen && (
-              <SquigglyUnderline title={title} />
-            )}
+            {isOpen && <SquigglyUnderline title={title} />}
           </div>
-          {isOpen ? (
-            <ChevronUp className="size-5 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="size-5 text-muted-foreground" />
-          )}
+          {isOpen
+            ? <ChevronUp className="size-5 text-muted-foreground" />
+            : <ChevronDown className="size-5 text-muted-foreground" />}
         </button>
-
-        {isOpen && (
-          <div className="mx-4 border-t border-dashed border-border" />
-        )}
+        {isOpen && <div className="mx-4 border-t border-dashed border-border" />}
       </div>
 
-      {isOpen && (
-        <div className="p-4 pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
-          {children}
-        </div>
-      )}
+      {/* Mobile content */}
+      <div className={cn("p-4 pb-6 md:hidden", !mobileOpen && "hidden")}>
+        {children}
+      </div>
+      {/* Desktop content */}
+      <div className={cn("hidden p-4 pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto", isOpen ? "md:block" : "md:hidden")}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -787,18 +837,18 @@ export function ReceiptContent({ data, stickerImage }: { data: ReceiptData; stic
       </div>
 
       {/* Cafe name */}
-      <p className="mb-3 text-center font-mono text-xs font-medium" style={{ color: TEXT_COLOR }}>
+      <p className="mb-3 break-words text-center font-mono text-xs font-medium" style={{ color: TEXT_COLOR }}>
         {data.cafeName || "Cafe"}
       </p>
 
       {/* Drink name */}
-      <h3 className="mb-3 text-center font-mono text-lg font-medium leading-tight" style={{ color: TEXT_COLOR }}>
+      <h3 className="mb-3 break-words text-center font-mono text-lg font-medium leading-tight" style={{ color: TEXT_COLOR }}>
         {data.drinkName || "Beverage"}
       </h3>
 
       {/* Customizations */}
       {customizations.length > 0 && (
-        <p className="mb-3 text-center font-mono text-xs font-medium" style={{ color: TEXT_COLOR }}>
+        <p className="mb-3 break-words text-center font-mono text-xs font-medium" style={{ color: TEXT_COLOR }}>
           {customizations.join(", ")}
         </p>
       )}
@@ -813,14 +863,14 @@ export function ReceiptContent({ data, stickerImage }: { data: ReceiptData; stic
 
       {/* Notes */}
       {data.comments && (
-        <p className="mb-3 font-mono text-xs font-light" style={{ color: TEXT_COLOR }}>
+        <p className="mb-3 break-words font-mono text-xs font-light" style={{ color: TEXT_COLOR }}>
           Notes: {data.comments}
         </p>
       )}
 
       {/* Location */}
       {data.location && (
-        <p className="font-mono text-xs font-light" style={{ color: TEXT_COLOR }}>
+        <p className="break-words font-mono text-xs font-light" style={{ color: TEXT_COLOR }}>
           {data.location}
         </p>
       )}
