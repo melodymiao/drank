@@ -599,7 +599,7 @@ export function ShareStep({
           </div>
 
           {/* Right column: Controls */}
-          <div className="flex flex-col gap-4 pb-24 md:min-h-0 md:flex-1 md:overflow-hidden md:pb-6">
+          <div className="flex flex-col gap-4 pb-36 md:min-h-0 md:flex-1 md:overflow-hidden md:pb-6">
             {/* Inner wrapper — vertically centers content on desktop, no padding/margin */}
             <div className="flex flex-col gap-4 md:flex-1 md:justify-center">
               {/* Desktop-only drink sticker control — centered above tab switcher */}
@@ -636,15 +636,22 @@ export function ShareStep({
         </div>
       </div>
 
-      {/* Mobile fixed bottom button — full width, no background */}
-      <div className="fixed inset-x-0 bottom-0 z-20 p-4 md:hidden">
-      <Button
-  size="lg"
-  className="w-full bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
-  style={{ paddingTop: 32, paddingBottom: 32 }}
-  onClick={activeTab === "story" ? handleDownloadStory : handleDownloadReceipt}
-  disabled={isGenerating || (activeTab === "story" && !storyUrl)}
->
+      {/* Mobile fixed bottom bar — Rank Another above Download */}
+      <div className="fixed inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 p-4 md:hidden">
+        <button
+          onClick={onReset}
+          className="flex items-center gap-2 font-sans text-sm text-pink-dark transition-colors hover:opacity-70"
+        >
+          <RotateCcw className="size-4" />
+          Rank Another
+        </button>
+        <Button
+          size="lg"
+          className="w-full bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
+          style={{ paddingTop: 24, paddingBottom: 24 }}
+          onClick={activeTab === "story" ? handleDownloadStory : handleDownloadReceipt}
+          disabled={isGenerating || (activeTab === "story" && !storyUrl)}
+        >
           <Download className="size-4" />
           {activeTab === "story" ? "Download Story" : "Download Receipt"}
         </Button>
@@ -860,7 +867,7 @@ function ReceiptContent({
 
       {/* Cafe name */}
       <p
-        className={cn("mb-3 text-center font-mono font-medium", textSize)}
+        className={cn("mb-3 break-words text-center font-mono font-medium", textSize)}
         style={{ color: TEXT_COLOR }}
       >
         {data.cafeName || "cafe"}
@@ -868,7 +875,7 @@ function ReceiptContent({
 
       {/* Drink name */}
       <h3
-        className={cn("mb-3 text-center font-mono font-medium leading-tight", titleSize)}
+        className={cn("mb-3 break-words text-center font-mono font-medium leading-tight", titleSize)}
         style={{ color: TEXT_COLOR }}
       >
         {data.drinkName || "Beverage"}
@@ -877,7 +884,7 @@ function ReceiptContent({
       {/* Customizations */}
       {customizations.length > 0 && (
         <p
-          className={cn("mb-3 text-center font-mono font-medium", textSize)}
+          className={cn("mb-3 break-words text-center font-mono font-medium", textSize)}
           style={{ color: TEXT_COLOR }}
         >
           {customizations.join(", ")}
@@ -904,14 +911,14 @@ function ReceiptContent({
 
       {/* Notes */}
       {data.comments && (
-        <p className={cn("mb-3 font-mono font-light", textSize)} style={{ color: TEXT_COLOR }}>
+        <p className={cn("mb-3 break-words font-mono font-light", textSize)} style={{ color: TEXT_COLOR }}>
           Notes: {data.comments}
         </p>
       )}
 
       {/* Location */}
       {data.location && (
-        <p className={cn("font-mono font-light", textSize)} style={{ color: TEXT_COLOR }}>
+        <p className={cn("break-words font-mono font-light", textSize)} style={{ color: TEXT_COLOR }}>
           {data.location}
         </p>
       )}

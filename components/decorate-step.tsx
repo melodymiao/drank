@@ -53,11 +53,24 @@ export function DecorateStep({
   onNext,
   onBack,
 }: DecorateStepProps) {
+  // Desktop: only one section open at a time (accordion). Mobile: both start open, each toggles independently.
   const [openSection, setOpenSection] = useState<"basics" | "customizations" | null>("basics")
+  const [mobileOpenSections, setMobileOpenSections] = useState<Set<"basics" | "customizations">>(
+    new Set(["basics", "customizations"])
+  )
   const [errors, setErrors] = useState<FormErrors>({})
 
   const toggleSection = (section: "basics" | "customizations") => {
     setOpenSection(openSection === section ? null : section)
+  }
+
+  const toggleMobileSection = (section: "basics" | "customizations") => {
+    setMobileOpenSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(section)) next.delete(section)
+      else next.add(section)
+      return next
+    })
   }
 
   const formatRating = (val: string) => {
@@ -107,6 +120,7 @@ export function DecorateStep({
     if (Object.keys(next).length > 0) {
       // Open BASICS accordion so the user can see the errors
       setOpenSection("basics")
+      setMobileOpenSections((prev) => new Set([...prev, "basics"]))
       return false
     }
     return true
@@ -127,20 +141,11 @@ export function DecorateStep({
         {/* Mobile: natural page scroll. Desktop: fully fixed, no page scroll */}
         <div className="flex flex-col md:h-full md:flex-row md:gap-8 md:overflow-hidden">
 
-          {/* Left column — same width as share-step (md:w-[400px]) */}
-          <div className="flex flex-col md:h-full md:w-[400px] md:min-h-0">
+          {/* Left column — desktop only (receipt preview + finish button) */}
+          <div className="hidden md:flex md:h-full md:w-[400px] md:min-h-0 md:flex-col">
 
-            {/* Row 1: Back button — fixed height, flush to top */}
-            {/* Mobile */}
-            <button
-              onClick={onBack}
-              className="mb-4 flex shrink-0 items-center gap-1.5 self-start py-2 font-sans text-sm text-green-dark transition-colors hover:opacity-70 md:hidden"
-            >
-              <ArrowLeft className="size-4" />
-              Back
-            </button>
-            {/* Desktop — h-[40px] matches share-step back button row */}
-            <div className="hidden h-[40px] shrink-0 items-center md:flex">
+            {/* Row 1: Back button — h-[40px] matches share-step back button row */}
+            <div className="h-[40px] shrink-0 items-center flex">
               <button
                 onClick={onBack}
                 className="flex items-center gap-1.5 font-sans text-sm text-green-dark transition-colors hover:opacity-70"
@@ -155,27 +160,38 @@ export function DecorateStep({
               <ReceiptPreview data={data} />
             </div>
 
-            {/* Row 3: Bottom section — fixed h-[120px], same as share-step.
-                Decorate has no "Rank Another" so the extra space sits above the button,
-                keeping the button at the exact same vertical position as on the share page. */}
-            <div className="hidden h-[120px] shrink-0 flex-col items-center justify-end pb-16 md:flex">
-  <Button
-    size="lg"
-    className="w-full max-w-[200px] bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
-    style={{ paddingTop: 24, paddingBottom: 24 }}
-    onClick={handleNext}
-  >
-    Finish Ranking
-  </Button>
-</div>
+            {/* Row 3: Bottom section — fixed h-[120px], same as share-step. */}
+            <div className="h-[120px] shrink-0 flex flex-col items-center justify-end pb-16">
+              <Button
+                size="lg"
+                className="w-full max-w-[200px] bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
+                style={{ paddingTop: 24, paddingBottom: 24 }}
+                onClick={handleNext}
+              >
+                Finish Ranking
+              </Button>
+            </div>
           </div>
 
-          {/* Right column - Accordion sections */}
-          <div className="flex flex-col gap-3 pb-24 pt-4 md:min-h-0 md:flex-1 md:overflow-hidden md:pb-6 md:pt-0">
+          {/* Right column - Accordion sections (full width on mobile, flex-1 on desktop) */}
+          <div className="flex flex-col gap-3 pb-28 pt-0 md:min-h-0 md:flex-1 md:overflow-hidden md:pb-6">
+
+            {/* Mobile back button — top of form, only on mobile */}
+            <button
+              onClick={onBack}
+              className="mb-1 flex shrink-0 items-center gap-1.5 self-start py-2 font-sans text-sm text-green-dark transition-colors hover:opacity-70 md:hidden"
+            >
+              <ArrowLeft className="size-4" />
+              Back
+            </button>
+
+            {/* BASICS — desktop: single accordion. Mobile: independently toggleable, starts open */}
             <AccordionSection
               title="BASICS"
               isOpen={openSection === "basics"}
+              mobileIsOpen={mobileOpenSections.has("basics")}
               onToggle={() => toggleSection("basics")}
+              onMobileToggle={() => toggleMobileSection("basics")}
             >
               <div className="flex flex-col gap-4">
                 <TextInput
@@ -262,7 +278,9 @@ export function DecorateStep({
             <AccordionSection
               title="CUSTOMIZATIONS"
               isOpen={openSection === "customizations"}
+              mobileIsOpen={mobileOpenSections.has("customizations")}
               onToggle={() => toggleSection("customizations")}
+              onMobileToggle={() => toggleMobileSection("customizations")}
             >
               <div className="flex flex-col gap-4">
                 <OptionGroup
@@ -356,21 +374,48 @@ export function DecorateStep({
 function AccordionSection({
   title,
   isOpen,
+  mobileIsOpen,
   onToggle,
+  onMobileToggle,
   children,
 }: {
   title: string
   isOpen: boolean
+  mobileIsOpen?: boolean
   onToggle: () => void
+  onMobileToggle?: () => void
   children: React.ReactNode
 }) {
+  const mobileOpen = mobileIsOpen ?? isOpen
   return (
     <div className={cn(
       "flex flex-col rounded-xl border border-border bg-card overflow-hidden",
       isOpen && "md:min-h-0 md:flex-1"
     )}>
-      {/* Header: sticky at top of viewport on mobile, static on desktop */}
-      <div className="sticky top-0 z-10 shrink-0 rounded-t-xl border-b border-transparent bg-card md:static md:border-0">
+      {/* Mobile header — independently toggleable, no sticky */}
+      <div className="block md:hidden">
+        <button
+          onClick={onMobileToggle ?? onToggle}
+          className="flex w-full items-center justify-between px-4 py-3"
+        >
+          <div className="flex flex-col items-start">
+            <span className={cn(
+              "font-mono text-xs font-semibold uppercase tracking-widest text-green-dark transition-opacity",
+              !mobileOpen && "opacity-50"
+            )}>
+              {title}
+            </span>
+            {mobileOpen && <SquigglyUnderline title={title} />}
+          </div>
+          {mobileOpen
+            ? <ChevronUp className="size-5 text-muted-foreground" />
+            : <ChevronDown className="size-5 text-muted-foreground" />}
+        </button>
+        {mobileOpen && <div className="mx-4 border-t border-dashed border-border" />}
+      </div>
+
+      {/* Desktop header — single-accordion behavior */}
+      <div className="hidden md:block">
         <button
           onClick={onToggle}
           className="flex w-full items-center justify-between px-4 py-3"
@@ -382,28 +427,23 @@ function AccordionSection({
             )}>
               {title}
             </span>
-            {isOpen && (
-              <SquigglyUnderline title={title} />
-            )}
+            {isOpen && <SquigglyUnderline title={title} />}
           </div>
-          {isOpen ? (
-            <ChevronUp className="size-5 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="size-5 text-muted-foreground" />
-          )}
+          {isOpen
+            ? <ChevronUp className="size-5 text-muted-foreground" />
+            : <ChevronDown className="size-5 text-muted-foreground" />}
         </button>
-
-        {isOpen && (
-          <div className="mx-4 border-t border-dashed border-border" />
-        )}
+        {isOpen && <div className="mx-4 border-t border-dashed border-border" />}
       </div>
 
-      {/* Content: natural height on mobile, internal scroll on desktop */}
-      {isOpen && (
-        <div className="p-4 pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto">
-          {children}
-        </div>
-      )}
+      {/* Mobile content — shows when mobileOpen */}
+      <div className={cn("p-4 pb-6 md:hidden", !mobileOpen && "hidden")}>
+        {children}
+      </div>
+      {/* Desktop content — shows when isOpen */}
+      <div className={cn("hidden p-4 pb-6 md:min-h-0 md:flex-1 md:overflow-y-auto", isOpen ? "md:block" : "md:hidden")}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -550,7 +590,7 @@ function ReceiptPreview({ data }: { data: ReceiptData }) {
 
         {/* Cafe name */}
         <p
-          className="mb-3 text-center font-mono text-xs font-medium"
+          className="mb-3 break-words text-center font-mono text-xs font-medium"
           style={{ color: TEXT_COLOR }}
         >
           {data.cafeName || "Cafe"}
@@ -558,7 +598,7 @@ function ReceiptPreview({ data }: { data: ReceiptData }) {
 
         {/* Drink name */}
         <h3
-          className="mb-3 text-center font-mono text-lg font-medium leading-tight"
+          className="mb-3 break-words text-center font-mono text-lg font-medium leading-tight"
           style={{ color: TEXT_COLOR }}
         >
           {data.drinkName || "Beverage"}
@@ -567,7 +607,7 @@ function ReceiptPreview({ data }: { data: ReceiptData }) {
         {/* Customizations - centered, one line, comma separated */}
         {customizations.length > 0 && (
           <p
-            className="mb-3 text-center font-mono text-xs font-medium"
+            className="mb-3 break-words text-center font-mono text-xs font-medium"
             style={{ color: TEXT_COLOR }}
           >
             {customizations.join(", ")}
@@ -577,7 +617,7 @@ function ReceiptPreview({ data }: { data: ReceiptData }) {
         {/* Notes */}
         {data.comments && (
           <p
-            className="mb-3 font-mono text-xs font-light"
+            className="mb-3 break-words font-mono text-xs font-light"
             style={{ color: TEXT_COLOR }}
           >
             Notes: {data.comments}
@@ -587,7 +627,7 @@ function ReceiptPreview({ data }: { data: ReceiptData }) {
         {/* Location */}
         {data.location && (
           <p
-            className="font-mono text-xs font-light"
+            className="break-words font-mono text-xs font-light"
             style={{ color: TEXT_COLOR }}
           >
             {data.location}

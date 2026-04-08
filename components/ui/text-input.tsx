@@ -99,7 +99,7 @@ function TextInput({
           onBlur={onBlur}
           maxLength={maxLength}
           disabled={disabled}
-          className={cn(baseFieldStyles, "min-h-[120px] resize-none")}
+          className={cn(baseFieldStyles, "min-h-[80px] max-h-[120px] resize-none overflow-y-auto")}
           aria-invalid={!!error}
           aria-describedby={error ? `${inputId}-error` : undefined}
           required={required}
