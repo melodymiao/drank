@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { TextInput } from "@/components/ui/text-input"
 import { OptionGroup } from "@/components/ui/option-button"
@@ -59,6 +59,8 @@ export function DecorateStep({
     new Set(["basics", "customizations"])
   )
   const [errors, setErrors] = useState<FormErrors>({})
+
+  const outerRef = useRef<HTMLDivElement>(null)
 
   const toggleSection = (section: "basics" | "customizations") => {
     setOpenSection(openSection === section ? null : section)
@@ -121,6 +123,9 @@ export function DecorateStep({
       // Open BASICS accordion so the user can see the errors
       setOpenSection("basics")
       setMobileOpenSections((prev) => new Set([...prev, "basics"]))
+      // Scroll to top — mobile: page scroll, desktop: right column internal scroll
+      window.scrollTo({ top: 0 })
+      outerRef.current?.scrollTo({ top: 0 })
       return false
     }
     return true
@@ -136,7 +141,7 @@ export function DecorateStep({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
+    <div ref={outerRef} className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
       <div className="mx-auto flex w-full max-w-[1100px] flex-col px-4 pt-3 md:h-full md:overflow-hidden md:px-6">
         {/* Mobile: natural page scroll. Desktop: fully fixed, no page scroll */}
         <div className="flex flex-col md:h-full md:flex-row md:gap-8 md:overflow-hidden">
@@ -238,22 +243,22 @@ export function DecorateStep({
                   maxLength={30}
                 />
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <TextInput
                     label="Date"
-                    type="date"
-                    placeholder="YYYY / MM / DD"
-                    value={data.date}
-                    onChange={(e) => { onUpdate({ date: e.target.value }); clearError("date") }}
+                      type="date"
+                      placeholder="YYYY / MM / DD"
+                      value={data.date}
+                      onChange={(e) => { onUpdate({ date: e.target.value }); clearError("date") }}
                     error={errors.date}
                     required
                   />
                   <TextInput
                     label="Time"
-                    type="time"
-                    placeholder="12:01 PM"
-                    value={data.time}
-                    onChange={(e) => { onUpdate({ time: e.target.value }); clearError("time") }}
+                      type="time"
+                      placeholder="12:01 PM"
+                      value={data.time}
+                      onChange={(e) => { onUpdate({ time: e.target.value }); clearError("time") }}
                     error={errors.time}
                     required
                   />
@@ -268,7 +273,7 @@ export function DecorateStep({
                     variant="long"
                     maxLength={150}
                   />
-                  <span className="-mt-1 block text-right font-mono text-[10px] text-muted-foreground">
+                  <span className="mt-1 block text-right font-mono text-[10px] text-muted-foreground">
                     {data.comments.length}/150
                   </span>
                 </div>

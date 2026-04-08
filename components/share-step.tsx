@@ -431,7 +431,7 @@ export function ShareStep({
                 )}
               />
             </button>
-            <span className="font-sans text-sm text-pink-dark">Include Drink Sticker</span>
+            <span className="font-sans text-sm text-pink-dark">Drink Sticker</span>
             {showDrinkSticker && (
               <button
                 onClick={handleReselect}
@@ -599,7 +599,7 @@ export function ShareStep({
           </div>
 
           {/* Right column: Controls */}
-          <div className="flex flex-col gap-4 pb-36 md:min-h-0 md:flex-1 md:overflow-hidden md:pb-6">
+          <div className="flex flex-col gap-4 pb-28 md:min-h-0 md:flex-1 md:overflow-hidden md:pb-6">
             {/* Inner wrapper — vertically centers content on desktop, no padding/margin */}
             <div className="flex flex-col gap-4 md:flex-1 md:justify-center">
               {/* Desktop-only drink sticker control — centered above tab switcher */}
@@ -610,6 +610,17 @@ export function ShareStep({
               {/* Tab switcher */}
               <div>
                 {TabSwitcher}
+              </div>
+
+              {/* Rank Another — mobile only, between toggle and sticker panel */}
+              <div className="flex justify-center md:hidden">
+                <button
+                  onClick={onReset}
+                  className="flex items-center gap-2 font-sans text-sm text-pink-dark transition-colors hover:opacity-70"
+                >
+                  <RotateCcw className="size-4" />
+                  Rank Another
+                </button>
               </div>
 
               {/* Stickers panel - single responsive wrapping group */}
@@ -636,15 +647,8 @@ export function ShareStep({
         </div>
       </div>
 
-      {/* Mobile fixed bottom bar — Rank Another above Download */}
-      <div className="fixed inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 p-4 md:hidden">
-        <button
-          onClick={onReset}
-          className="flex items-center gap-2 font-sans text-sm text-pink-dark transition-colors hover:opacity-70"
-        >
-          <RotateCcw className="size-4" />
-          Rank Another
-        </button>
+      {/* Mobile fixed bottom bar — Download only */}
+      <div className="fixed inset-x-0 bottom-0 z-20 p-4 md:hidden">
         <Button
           size="lg"
           className="w-full bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
