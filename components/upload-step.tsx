@@ -200,7 +200,7 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-4">
-      <p className="shrink-0 text-center text-sm text-muted-foreground">
+      <p className="shrink-0 mb-3 text-center text-sm text-muted-foreground">
         upload a photo to get started
       </p>
 
@@ -283,7 +283,7 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
           )}
         </>
       ) : (
-        <>
+        <div className="flex flex-col items-center gap-6 w-full">
           <div className="relative w-full max-w-[280px]">
             <div className="aspect-[3/4] overflow-hidden rounded-2xl border border-border shadow-lg">
               <img
@@ -303,12 +303,13 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
 
           <Button
             size="lg"
-            className="w-full max-w-[280px] rounded-full bg-brown px-6 py-5 font-sans text-sm uppercase tracking-wider text-card hover:bg-brown/90"
+            className="w-full max-w-[200px] bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
+            style={{ paddingTop: 24, paddingBottom: 24 }}
             onClick={onNext}
           >
-            Next: Rank Your Drink
+            Rank Your Drink
           </Button>
-        </>
+        </div>
       )}
 
       <input
