@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Download, RotateCcw, ArrowLeft, Upload, X } from "lucide-react"
+import { Download, RotateCcw, ArrowLeft, Upload, X, CupSoda } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ReceiptData, StickerItem } from "@/components/decorate-step"
 import { removeBackground } from "@imgly/background-removal"
@@ -109,7 +109,7 @@ export function ShareStep({
   const [showSelectionModal, setShowSelectionModal] = useState(false)
   const [hasEverSelected, setHasEverSelected] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<"story" | "receipt">("receipt")
+  const [activeTab, setActiveTab] = useState<"story" | "receipt">(image ? "story" : "receipt")
   const [saveModalUrl, setSaveModalUrl] = useState<string | null>(null)
   const [saveModalFilename, setSaveModalFilename] = useState<string>("")
 
@@ -408,7 +408,7 @@ export function ShareStep({
         </span>
       ) : isBgProcessing ? (
         <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
-          processing...
+          this may take a minute...
           <div className="size-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
         </span>
       ) : (
@@ -431,7 +431,10 @@ export function ShareStep({
                 )}
               />
             </button>
-            <span className="font-sans text-sm text-pink-dark">Drink Sticker</span>
+            <span className="flex items-center gap-1 font-sans text-sm text-pink-dark">
+              Drink Sticker
+              <CupSoda className="size-3.5" />
+            </span>
             {showDrinkSticker && (
               <button
                 onClick={handleReselect}
@@ -470,7 +473,7 @@ export function ShareStep({
           !canShowStory && "cursor-not-allowed opacity-40"
         )}
       >
-        {canShowStory ? "Story" : "Story Unavailable"}
+        {canShowStory ? "Story" : "No Photo"}
       </button>
       <button
         onClick={() => setActiveTab("receipt")}
@@ -625,6 +628,9 @@ export function ShareStep({
 
               {/* Stickers panel - single responsive wrapping group */}
               <div className="rounded-xl border border-border bg-card p-4">
+                <p className="mb-3 text-center font-mono text-xs text-muted-foreground">
+                  select a tag to place it on your {activeTab === "story" ? "story" : "receipt"}
+                </p>
                 <div className="flex flex-wrap justify-center gap-3">
                   {STICKER_GROUPS.flat().map((sticker) => (
                     <button
@@ -742,9 +748,7 @@ function InteractiveCanvas({
   }
 
   const handleContainerClick = (e: React.MouseEvent) => {
-    if (e.target === containerRef.current) {
-      onCanvasClick()
-    }
+    onCanvasClick()
   }
 
   if (mode === "story" && backgroundImage) {
