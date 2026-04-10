@@ -38,7 +38,7 @@ function TextInput({
 
   const baseFieldStyles = cn(
     // Layout
-    "w-full px-4 py-3",
+    "w-full px-4 py-3 appearance-none",
     // Typography
     "font-mono text-sm placeholder:text-muted-foreground",
     // Colors & background

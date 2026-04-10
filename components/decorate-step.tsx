@@ -543,7 +543,7 @@ export function DecorateStep({
                 />
 
                 {/* Date + Time — stack on mobile, side by side on sm+ */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3">
                   <TextInput
                     label="Date"
                     type="date"
@@ -651,7 +651,7 @@ export function DecorateStep({
                 />
 
                 <ToppingTags
-                  label="TOPPINGS"
+                  label="Toppings"
                   value={data.toppings}
                   onChange={(val) => onUpdate({ toppings: val })}
                 />
