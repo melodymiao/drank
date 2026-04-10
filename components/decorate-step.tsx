@@ -70,18 +70,21 @@ const CAFE_CHAINS = [
   "Caffe Luxxe", "Jones Coffee Roasters", "Dayglow",
 ]
 
+ 
 /* ================= Location Autocomplete ================= */
 
-const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""
+/* ================= Location Autocomplete ================= */
 
 function LocationInput({
   value,
   onChange,
   imageExifLocation,
+  cafeName,
 }: {
   value: string
   onChange: (val: string) => void
   imageExifLocation?: string | null
+  cafeName?: string
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [open, setOpen] = useState(false)
@@ -102,28 +105,46 @@ function LocationInput({
     return () => document.removeEventListener("mousedown", handleClick)
   }, [])
 
+  // Fetch city suggestions by typing
   const fetchSuggestions = useCallback(async (query: string) => {
     if (!query || query.length < 2) {
       setSuggestions([])
       setOpen(false)
       return
     }
-
     setLoading(true)
     try {
-      if (GOOGLE_MAPS_API_KEY) {
-        const res = await fetch(
-          `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&types=(cities)&sessiontoken=${sessionTokenRef.current}&key=${GOOGLE_MAPS_API_KEY}`
-        )
-        const json = await res.json()
-        const results = (json.predictions || []).map(
-          (p: { description: string }) => p.description
-        )
-        setSuggestions(results.slice(0, 5))
-        setOpen(results.length > 0)
-      }
+      const params = new URLSearchParams({
+        input: query,
+        sessiontoken: sessionTokenRef.current,
+      })
+      const res = await fetch(`/api/places/autocomplete?${params}`)
+      const json = await res.json()
+      const results: string[] = json.predictions || []
+      setSuggestions(results.slice(0, 5))
+      setOpen(results.length > 0)
     } catch {
       setSuggestions([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Fetch location suggestions based on café name (text search)
+  const fetchCafeLocations = useCallback(async (cafe: string) => {
+    if (!cafe || cafe.length < 2) return
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ query: cafe })
+      const res = await fetch(`/api/places/textsearch?${params}`)
+      const json = await res.json()
+      const results: string[] = json.results || []
+      if (results.length > 0) {
+        setSuggestions(results)
+        setOpen(true)
+      }
+    } catch {
+      // silently fail
     } finally {
       setLoading(false)
     }
@@ -132,16 +153,27 @@ function LocationInput({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     onChange(val)
-
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => fetchSuggestions(val), 300)
+  }
+
+  const handleFocus = () => {
+    // If the field is empty and there's a café name, show café-based suggestions
+    if (!value && cafeName && cafeName.length >= 2) {
+      if (suggestions.length > 0) {
+        setOpen(true)
+      } else {
+        fetchCafeLocations(cafeName)
+      }
+    } else if (suggestions.length > 0) {
+      setOpen(true)
+    }
   }
 
   const handleSelect = (suggestion: string) => {
     onChange(suggestion)
     setOpen(false)
     setSuggestions([])
-    // Rotate session token after selection (billing best practice)
     sessionTokenRef.current = crypto.randomUUID()
   }
 
@@ -152,16 +184,13 @@ function LocationInput({
       async (pos) => {
         try {
           const { latitude, longitude } = pos.coords
-          if (GOOGLE_MAPS_API_KEY) {
-            const res = await fetch(
-              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&result_type=locality&key=${GOOGLE_MAPS_API_KEY}`
-            )
-            const json = await res.json()
-            const city = json.results?.[0]?.address_components?.find(
-              (c: { types: string[] }) => c.types.includes("locality")
-            )?.long_name
-            if (city) onChange(city)
-          }
+          const params = new URLSearchParams({ latlng: `${latitude},${longitude}` })
+          const res = await fetch(`/api/places/geocode?${params}`)
+          const json = await res.json()
+          const city = json.results?.[0]?.address_components?.find(
+            (c: { types: string[] }) => c.types.includes("locality")
+          )?.long_name
+          if (city) onChange(city)
         } catch {
           // silently fail
         } finally {
@@ -187,21 +216,19 @@ function LocationInput({
               Use photo location
             </button>
           )}
-          {GOOGLE_MAPS_API_KEY && (
-            <button
-              type="button"
-              onClick={handleGeolocate}
-              disabled={geoLoading}
-              className="flex items-center gap-1 font-sans text-xs text-green-dark transition-colors hover:opacity-70 disabled:opacity-40"
-            >
-              {geoLoading ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <MapPin className="size-3" />
-              )}
-              {geoLoading ? "Detecting..." : "Use my location"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleGeolocate}
+            disabled={geoLoading}
+            className="flex items-center gap-1 font-sans text-xs text-green-dark transition-colors hover:opacity-70 disabled:opacity-40"
+          >
+            {geoLoading ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <MapPin className="size-3" />
+            )}
+            {geoLoading ? "Detecting..." : "Use my location"}
+          </button>
         </div>
       </div>
 
@@ -210,7 +237,7 @@ function LocationInput({
         placeholder="Del Mar"
         value={value}
         onChange={handleChange}
-        onFocus={() => { if (suggestions.length > 0) setOpen(true) }}
+        onFocus={handleFocus}
         maxLength={40}
         className={cn(
           "w-full rounded-lg border-2 border-border bg-secondary px-4 py-3",
@@ -306,7 +333,7 @@ function CafeInput({
 
       <input
         type="text"
-        placeholder="HeyTea"
+        placeholder="HEYTEA"
         value={value}
         onChange={handleChange}
         onFocus={() => { if (suggestions.length > 0) setOpen(true) }}
@@ -512,6 +539,7 @@ export function DecorateStep({
                   value={data.location}
                   onChange={(val) => onUpdate({ location: val })}
                   imageExifLocation={exifLocation}
+                  cafeName={data.cafeName}
                 />
 
                 {/* Date + Time — stack on mobile, side by side on sm+ */}

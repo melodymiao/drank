@@ -30,16 +30,19 @@ export default function DrankApp() {
   const [receiptData, setReceiptData] = useState<ReceiptData>(defaultReceiptData)
   const [stickers, setStickers] = useState<StickerItem[]>([])
 
-  const handleImageUpload = useCallback((img: string, exifDate?: string) => {
+  const handleImageUpload = useCallback((img: string, exifDate?: string, exifLocation?: string) => {
     setImage(img || null)
+    const updates: Partial<ReceiptData> = {}
     if (exifDate) {
-      // exifDate is in "YYYY-MM-DDTHH:MM" format, split into date and time
       const [datePart, timePart] = exifDate.split("T")
-      setReceiptData((prev) => ({
-        ...prev,
-        date: datePart || "",
-        time: timePart || "",
-      }))
+      updates.date = datePart || ""
+      updates.time = timePart || ""
+    }
+    if (exifLocation) {
+      updates.location = exifLocation
+    }
+    if (Object.keys(updates).length > 0) {
+      setReceiptData((prev) => ({ ...prev, ...updates }))
     }
   }, [])
 

@@ -7,69 +7,70 @@ import { ERRORS, pickError } from "@/lib/errors"
 
 interface UploadStepProps {
   image: string | null
-  onImageUpload: (image: string, exifDate?: string) => void
+  onImageUpload: (image: string, exifDate?: string, exifLocation?: string) => void
   onNext: () => void
   onSkip: () => void
 }
 
 /**
- * Try to read EXIF DateTimeOriginal from a JPEG/TIFF file.
- * Returns an ISO-ish datetime-local string (YYYY-MM-DDTHH:MM) or undefined.
+ * Extract date and GPS location from any image file using exifr.
+ * Works with JPEG and HEIC/HEIF on the raw bytes before any conversion.
  */
-function extractExifDate(file: File): Promise<string | undefined> {
-  return new Promise((resolve) => {
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      try {
-        const view = new DataView(reader.result as ArrayBuffer)
-        // Verify JPEG SOI marker
-        if (view.getUint16(0) !== 0xffd8) {
-          resolve(undefined)
-          return
-        }
+async function extractExifData(file: File): Promise<{ date?: string; location?: string }> {
+  try {
+    const exifr = (await import("exifr")).default
+    const exif = await exifr.parse(file, {
+      pick: ["DateTimeOriginal", "GPSLatitude", "GPSLongitude", "GPSLatitudeRef", "GPSLongitudeRef"],
+    })
 
-        let offset = 2
-        while (offset < view.byteLength - 2) {
-          const marker = view.getUint16(offset)
-          if (marker === 0xffe1) {
-            // APP1 = EXIF
-            const length = view.getUint16(offset + 2)
-            const exifData = parseExifDateTime(view, offset + 4, length)
-            resolve(exifData)
-            return
-          } else if ((marker & 0xff00) !== 0xff00) {
-            break
-          } else {
-            const segLength = view.getUint16(offset + 2)
-            offset += 2 + segLength
-          }
-        }
-        resolve(undefined)
-      } catch {
-        resolve(undefined)
+    console.log("exifr raw result:", exif)
+
+    if (!exif) return {}
+
+    // Extract date
+    let date: string | undefined
+    if (exif.DateTimeOriginal instanceof Date) {
+      const d = exif.DateTimeOriginal
+      const y = d.getFullYear()
+      const mo = String(d.getMonth() + 1).padStart(2, "0")
+      const day = String(d.getDate()).padStart(2, "0")
+      const h = String(d.getHours()).padStart(2, "0")
+      const min = String(d.getMinutes()).padStart(2, "0")
+      date = `${y}-${mo}-${day}T${h}:${min}`
+    }
+
+    // Extract GPS and reverse-geocode to city name
+    let location: string | undefined
+    if (exif.GPSLatitude != null && exif.GPSLongitude != null) {
+      try {
+        // Convert DMS array [degrees, minutes, seconds] to signed decimal
+        const [latD, latM, latS] = exif.GPSLatitude as number[]
+        const [lngD, lngM, lngS] = exif.GPSLongitude as number[]
+        const lat = (latD + latM / 60 + latS / 3600) * (exif.GPSLatitudeRef === "S" ? -1 : 1)
+        const lng = (lngD + lngM / 60 + lngS / 3600) * (exif.GPSLongitudeRef === "W" ? -1 : 1)
+
+        console.log("computed coords:", { lat, lng })
+
+        const params = new URLSearchParams({ latlng: `${lat},${lng}` })
+        const res = await fetch(`/api/places/geocode?${params}`)
+        const json = await res.json()
+
+        console.log("geocode response:", json)
+
+        const city = json.results?.[0]?.address_components?.find(
+          (c: { types: string[] }) => c.types.includes("locality")
+        )?.long_name
+        if (city) location = city
+      } catch (err) {
+        console.error("GPS geocode failed:", err)
       }
     }
-    reader.onerror = () => resolve(undefined)
-    reader.readAsArrayBuffer(file.slice(0, 128 * 1024)) // Only read first 128KB for EXIF
-  })
-}
 
-function parseExifDateTime(view: DataView, start: number, length: number): string | undefined {
-  try {
-    const decoder = new TextDecoder("ascii")
-    const bytes = new Uint8Array(view.buffer, start, Math.min(length, view.byteLength - start))
-    const text = decoder.decode(bytes)
-
-    // Look for DateTimeOriginal pattern: "YYYY:MM:DD HH:MM:SS"
-    const datePattern = /(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})/
-    const match = text.match(datePattern)
-    if (match) {
-      const [, year, month, day, hour, minute] = match
-      return `${year}-${month}-${day}T${hour}:${minute}`
-    }
-    return undefined
-  } catch {
-    return undefined
+    console.log("extractExifData returning:", { date, location })
+    return { date, location }
+  } catch (err) {
+    console.error("extractExifData error:", err)
+    return {}
   }
 }
 
@@ -138,34 +139,29 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
       }
 
       try {
+        // Extract EXIF from raw file bytes BEFORE any conversion
+        const { date: exifDate, location: exifLocation } = await extractExifData(file)
+        console.log("processFile got exif:", { exifDate, exifLocation })
+
         let dataUrl: string
-        let exifDate: string | undefined
 
         if (isHeicFile(file)) {
-          // HEIC/HEIF: convert to JPEG first (no EXIF extraction — heic2any strips it)
           setIsConverting(true)
           try {
             dataUrl = await convertHeicToJpeg(file)
           } finally {
             setIsConverting(false)
           }
-          exifDate = undefined
         } else {
-          // Standard image: read as data URL and extract EXIF in parallel
-          const [url, exif] = await Promise.all([
-            new Promise<string>((resolve, reject) => {
-              const reader = new FileReader()
-              reader.onloadend = () => resolve(reader.result as string)
-              reader.onerror = () => reject(new Error("FileReader failed"))
-              reader.readAsDataURL(file)
-            }),
-            extractExifDate(file),
-          ])
-          dataUrl = url
-          exifDate = exif
+          dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.onerror = () => reject(new Error("FileReader failed"))
+            reader.readAsDataURL(file)
+          })
         }
 
-        onImageUpload(dataUrl, exifDate)
+        onImageUpload(dataUrl, exifDate, exifLocation)
       } catch {
         setIsConverting(false)
         setUploadError(pickError(ERRORS.uploadFailed))
@@ -198,6 +194,9 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
     if (fileInputRef.current) fileInputRef.current.value = ""
     if (cameraInputRef.current) cameraInputRef.current.value = ""
   }, [onImageUpload])
+
+  // suppress unused warning — localDateString kept for future use
+  void localDateString
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-4">
