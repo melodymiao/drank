@@ -7,7 +7,7 @@ import { ERRORS, pickError } from "@/lib/errors"
 
 interface UploadStepProps {
   image: string | null
-  onImageUpload: (image: string, exifDate?: string, exifLocation?: string) => void
+  onImageUpload: (image: string, exifDate?: string, exifLocation?: string, exifCafe?: string) => void
   onNext: () => void
   onSkip: () => void
 }
@@ -16,7 +16,7 @@ interface UploadStepProps {
  * Extract date and GPS location from any image file using exifr.
  * Works with JPEG and HEIC/HEIF on the raw bytes before any conversion.
  */
-async function extractExifData(file: File): Promise<{ date?: string; location?: string }> {
+async function extractExifData(file: File): Promise<{ date?: string; location?: string; cafe?: string }> {
   try {
     const exifr = (await import("exifr")).default
     const exif = await exifr.parse(file, {
@@ -39,8 +39,9 @@ async function extractExifData(file: File): Promise<{ date?: string; location?: 
       date = `${y}-${mo}-${day}T${h}:${min}`
     }
 
-    // Extract GPS and reverse-geocode to city name
+    // Extract GPS and reverse-geocode to city + nearby business name
     let location: string | undefined
+    let cafe: string | undefined
     if (exif.GPSLatitude != null && exif.GPSLongitude != null) {
       try {
         // Convert DMS array [degrees, minutes, seconds] to signed decimal
@@ -52,22 +53,20 @@ async function extractExifData(file: File): Promise<{ date?: string; location?: 
         console.log("computed coords:", { lat, lng })
 
         const params = new URLSearchParams({ latlng: `${lat},${lng}` })
-        const res = await fetch(`/api/places/geocode?${params}`)
+        const res = await fetch(`/api/geocode?${params}`)
         const json = await res.json()
 
         console.log("geocode response:", json)
 
-        const city = json.results?.[0]?.address_components?.find(
-          (c: { types: string[] }) => c.types.includes("locality")
-        )?.long_name
-        if (city) location = city
+        if (json.city) location = json.city
+        if (json.businessName) cafe = json.businessName
       } catch (err) {
         console.error("GPS geocode failed:", err)
       }
     }
 
-    console.log("extractExifData returning:", { date, location })
-    return { date, location }
+    console.log("extractExifData returning:", { date, location, cafe })
+    return { date, location, cafe }
   } catch (err) {
     console.error("extractExifData error:", err)
     return {}
@@ -140,8 +139,8 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
 
       try {
         // Extract EXIF from raw file bytes BEFORE any conversion
-        const { date: exifDate, location: exifLocation } = await extractExifData(file)
-        console.log("processFile got exif:", { exifDate, exifLocation })
+        const { date: exifDate, location: exifLocation, cafe: exifCafe } = await extractExifData(file)
+        console.log("processFile got exif:", { exifDate, exifLocation, exifCafe })
 
         let dataUrl: string
 
@@ -161,7 +160,7 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
           })
         }
 
-        onImageUpload(dataUrl, exifDate, exifLocation)
+        onImageUpload(dataUrl, exifDate, exifLocation, exifCafe)
       } catch {
         setIsConverting(false)
         setUploadError(pickError(ERRORS.uploadFailed))

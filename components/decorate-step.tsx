@@ -543,7 +543,7 @@ export function DecorateStep({
                 />
 
                 {/* Date + Time — stack on mobile, side by side on sm+ */}
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <TextInput
                     label="Date"
                     type="date"
@@ -870,13 +870,13 @@ export function ReceiptContent({ data, stickerImage }: { data: ReceiptData; stic
       </p>
 
       {/* Drink name */}
-      <h3 className="mb-3 break-words text-center font-mono text-lg font-medium leading-tight" style={{ color: TEXT_COLOR }}>
+      <h3 className="mb-3 break-words text-center font-mono text-2xl font-medium leading-tight" style={{ color: TEXT_COLOR }}>
         {data.drinkName || "Beverage"}
       </h3>
 
       {/* Customizations */}
       {customizations.length > 0 && (
-        <p className="mb-3 break-words text-center font-mono text-xs font-medium" style={{ color: TEXT_COLOR }}>
+        <p className="mb-3 break-words text-center font-mono text-sm font-medium" style={{ color: TEXT_COLOR }}>
           {customizations.join(", ")}
         </p>
       )}

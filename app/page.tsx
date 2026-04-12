@@ -30,21 +30,27 @@ export default function DrankApp() {
   const [receiptData, setReceiptData] = useState<ReceiptData>(defaultReceiptData)
   const [stickers, setStickers] = useState<StickerItem[]>([])
 
-  const handleImageUpload = useCallback((img: string, exifDate?: string, exifLocation?: string) => {
-    setImage(img || null)
-    const updates: Partial<ReceiptData> = {}
-    if (exifDate) {
-      const [datePart, timePart] = exifDate.split("T")
-      updates.date = datePart || ""
-      updates.time = timePart || ""
-    }
-    if (exifLocation) {
-      updates.location = exifLocation
-    }
-    if (Object.keys(updates).length > 0) {
-      setReceiptData((prev) => ({ ...prev, ...updates }))
-    }
-  }, [])
+  const handleImageUpload = useCallback(
+    (img: string, exifDate?: string, exifLocation?: string, exifCafe?: string) => {
+      setImage(img || null)
+      const updates: Partial<ReceiptData> = {}
+      if (exifDate) {
+        const [datePart, timePart] = exifDate.split("T")
+        updates.date = datePart || ""
+        updates.time = timePart || ""
+      }
+      if (exifLocation) {
+        updates.location = exifLocation
+      }
+      if (exifCafe) {
+        updates.cafeName = exifCafe
+      }
+      if (Object.keys(updates).length > 0) {
+        setReceiptData((prev) => ({ ...prev, ...updates }))
+      }
+    },
+    []
+  )
 
   const handleReceiptUpdate = useCallback((updates: Partial<ReceiptData>) => {
     setReceiptData((prev) => ({ ...prev, ...updates }))

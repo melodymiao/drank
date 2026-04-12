@@ -26,15 +26,15 @@ const STICKER_GROUPS: StickerDef[][] = [
     { text: "my go-to",        bg: "#FFB1D0", textColor: "#96003F",     rotation:  4 },
     { text: "so good",         bg: "#FDE45F", textColor: "#FF7347",     rotation: -2 },
     { text: "highly recommend",bg: "#CADFF4", textColor: "#96003F",     rotation:  3 },
-    { text: "solid",           bg: "#E3E91B", textColor: "#96003F",  rotation: -4 },
+    { text: "solid",           bg: "#E3E91B", textColor: "#96003F",     rotation: -4 },
     { text: "good not great",  bg: "#96003F", textColor: "#CADFF4",     rotation:  2 },
   ],
   // Row 2: Mixed → negative
   [
-    { text: "so-so",           bg: "#FDE45F", textColor: "#2A2A00",  rotation:  3 },
+    { text: "so-so",           bg: "#FDE45F", textColor: "#2A2A00",     rotation:  3 },
     { text: "meh",             bg: "#E3E91B", textColor: "#FF7347",     rotation: -3 },
     { text: "kinda mid",       bg: "#FF7347", textColor: "#CADFF4",     rotation:  4 },
-    { text: "not for me",      bg: "#96003F", textColor: "#FFE657",  rotation: -2 },
+    { text: "not for me",      bg: "#96003F", textColor: "#FFE657",     rotation: -2 },
     { text: "not worth",       bg: "#FFB1D0", textColor: "#3A1206",     rotation:  2 },
     { text: "never again",     bg: "#3A1206", textColor: "#CADFF4",     rotation: -4 },
   ],
@@ -78,8 +78,8 @@ interface SelectionRect {
 }
 
 // Receipt constants — single source of truth used by both preview and canvas export
-const RECEIPT_BG = "#FEFCF4"
-const RECEIPT_RADIUS = 4 // px, small border radius on receipt in export
+const RECEIPT_BG = "rgba(254,252,244,0.9)"
+const RECEIPT_RADIUS = 2
 const TEXT_COLOR = "#473C23"
 
 export function ShareStep({
@@ -227,8 +227,8 @@ export function ShareStep({
         const imgW2 = selW / imgScale
         const imgH2 = selH / imgScale
 
-        // Add 5% padding in image pixels on each side
-        const padPx = Math.max(imgW2, imgH2) * 0.05
+        // Add 2% padding in image pixels on each side
+        const padPx = Math.max(imgW2, imgH2) * 0.02
         actualX = Math.max(0, imgX - padPx)
         actualY = Math.max(0, imgY - padPx)
         actualW = Math.min(img.naturalWidth - actualX, imgW2 + padPx * 2)
@@ -351,6 +351,7 @@ export function ShareStep({
       setShowDrinkSticker(false)
 
       onImageUpload(dataUrl)
+      setActiveTab("story")
     },
     [onImageUpload]
   )
@@ -733,12 +734,12 @@ function InteractiveCanvas({
   if (data.toppings.length > 0) customizations.push(...data.toppings.map(toTitleCase))
   if (data.otherCustomizations) customizations.push(toTitleCase(data.otherCustomizations))
 
-  const formatDate = (dateStr: string) => {
+  const formatDateLocal = (dateStr: string) => {
     if (!dateStr) return "YYYYMMDD"
     return dateStr.replace(/-/g, "")
   }
 
-  const formatTime = (timeStr: string) => {
+  const formatTimeLocal = (timeStr: string) => {
     if (!timeStr) return "12:00 AM"
     const [hours, minutes] = timeStr.split(":")
     const h = parseInt(hours, 10)
@@ -778,7 +779,7 @@ function InteractiveCanvas({
             src={storyReceiptUrl}
             alt="receipt"
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ width: "70%", display: "block", borderRadius: 4 }}
+            style={{ width: "70%", display: "block", borderRadius: 24}}
             draggable={false}
           />
         )}
@@ -805,16 +806,16 @@ function InteractiveCanvas({
       <div
         ref={containerRef}
         onClick={handleContainerClick}
-        className="relative w-[280px] rounded-sm px-5 py-6 shadow-md overflow-hidden"
-        style={{ backgroundColor: RECEIPT_BG }}
+        className="relative w-[280px] rounded-sm px-5 py-6 overflow-hidden"
+        style={{ backgroundColor: "rgba(254,252,244,0.9)", fontFamily: "'Space Mono', monospace", boxShadow: "0 4px 32px rgba(0,0,0,0.08)" }}
       >
         <ReceiptContent
           data={data}
           stickerImage={stickerImage}
           isProcessing={isProcessing}
           customizations={customizations}
-          formatDate={formatDate}
-          formatTime={formatTime}
+          formatDate={formatDateLocal}
+          formatTime={formatTimeLocal}
         />
 
         {/* Placed stickers — inside receipt div so they are bounded to it */}
@@ -855,8 +856,9 @@ function ReceiptContent({
   formatTime: (t: string) => string
   small?: boolean
 }) {
-  const textSize = small ? "text-[8px]" : "text-xs"
-  const titleSize = small ? "text-sm" : "text-lg"
+  const textSize = small ? "text-[8px]" : "text-xs"        // café, notes, location, date, footer
+  const customSize = small ? "text-[8px]" : "text-sm"      // customizations
+  const titleSize = small ? "text-sm" : "text-2xl"          // drink name
   const ratingSize = small ? "size-10 text-sm" : "size-14 text-lg"
 
   return (
@@ -892,7 +894,7 @@ function ReceiptContent({
       {/* Customizations */}
       {customizations.length > 0 && (
         <p
-          className={cn("mb-3 break-words text-center font-mono font-medium", textSize)}
+          className={cn("mb-3 break-words text-center font-mono font-medium", customSize)}
           style={{ color: TEXT_COLOR }}
         >
           {customizations.join(", ")}
@@ -908,7 +910,7 @@ function ReceiptContent({
           </div>
         </div>
       ) : stickerImage ? (
-        <div className="my-3 flex justify-center">
+        <div className="mb-1 flex justify-center">
           <img
             src={stickerImage}
             alt="Drink sticker"
@@ -967,255 +969,250 @@ function DraggableSticker({
   containerRef: React.RefObject<HTMLDivElement | null>
 }) {
   const stickerRef = useRef<HTMLDivElement>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [isResizing, setIsResizing] = useState(false)
-  const [isRotating, setIsRotating] = useState(false)
-  const dragStartRef = useRef<{ x: number; y: number; stickerX: number; stickerY: number } | null>(null)
-  const resizeStartRef = useRef<{ scale: number; startDistance: number } | null>(null)
-  const rotateStartRef = useRef<{ rotation: number; startAngle: number } | null>(null)
 
-  const getEventPosition = (e: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent) => {
-    if ("touches" in e && e.touches.length > 0) {
-      return { x: e.touches[0].clientX, y: e.touches[0].clientY }
-    }
-    if ("clientX" in e) {
-      return { x: e.clientX, y: e.clientY }
-    }
+  // Drag state
+  const dragStartRef = useRef<{
+    clientX: number
+    clientY: number
+    startX: number
+    startY: number
+  } | null>(null)
+
+  // Resize state
+  const resizeStartRef = useRef<{
+    clientX: number
+    clientY: number
+    startScale: number
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+  } | null>(null)
+
+  // Rotate state
+  const rotateStartRef = useRef<{
+    originX: number
+    originY: number
+    startAngle: number
+    startRotation: number
+  } | null>(null)
+
+  const getContainerBounds = () => containerRef.current?.getBoundingClientRect() ?? null
+
+  const getClient = (e: MouseEvent | TouchEvent) => {
+    if ("touches" in e && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    if ("clientX" in e) return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY }
     return { x: 0, y: 0 }
   }
 
-  const handlePointerDown = (e: React.MouseEvent | React.TouchEvent) => {
+  // ── Drag ──────────────────────────────────────────────────────────────────
+
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation()
     onSelect()
-
-    if (!containerRef.current) return
-    const pos = getEventPosition(e)
-
-    setIsDragging(true)
-    dragStartRef.current = {
-      x: pos.x,
-      y: pos.y,
-      stickerX: sticker.x,
-      stickerY: sticker.y,
-    }
+    const client = "touches" in e
+      ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      : { x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY }
+    dragStartRef.current = { clientX: client.x, clientY: client.y, startX: sticker.x, startY: sticker.y }
   }
 
   useEffect(() => {
-    if (!isDragging) return
-
     const handleMove = (e: MouseEvent | TouchEvent) => {
-      if (!dragStartRef.current || !containerRef.current) return
-      const bounds = containerRef.current.getBoundingClientRect()
-      const pos = getEventPosition(e)
-
-      const deltaX = ((pos.x - dragStartRef.current.x) / bounds.width) * 100
-      const deltaY = ((pos.y - dragStartRef.current.y) / bounds.height) * 100
-
+      if (!dragStartRef.current) return
+      const bounds = getContainerBounds()
+      if (!bounds) return
+      const { x, y } = getClient(e)
+      const dx = ((x - dragStartRef.current.clientX) / bounds.width) * 100
+      const dy = ((y - dragStartRef.current.clientY) / bounds.height) * 100
       onUpdate({
-        x: Math.max(0, Math.min(100, dragStartRef.current.stickerX + deltaX)),
-        y: Math.max(0, Math.min(100, dragStartRef.current.stickerY + deltaY)),
+        x: Math.max(0, Math.min(100, dragStartRef.current.startX + dx)),
+        y: Math.max(0, Math.min(100, dragStartRef.current.startY + dy)),
       })
     }
-
-    const handleUp = () => {
-      setIsDragging(false)
-      dragStartRef.current = null
-    }
-
+    const handleUp = () => { dragStartRef.current = null }
     document.addEventListener("mousemove", handleMove)
     document.addEventListener("mouseup", handleUp)
-    document.addEventListener("touchmove", handleMove)
+    document.addEventListener("touchmove", handleMove, { passive: true })
     document.addEventListener("touchend", handleUp)
-
     return () => {
       document.removeEventListener("mousemove", handleMove)
       document.removeEventListener("mouseup", handleUp)
       document.removeEventListener("touchmove", handleMove)
       document.removeEventListener("touchend", handleUp)
     }
-  }, [isDragging, containerRef, onUpdate])
+  }, [sticker.x, sticker.y])
+
+  // ── Resize ────────────────────────────────────────────────────────────────
 
   const handleResizeStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation()
-    onSelect()
-
-    const pos = getEventPosition(e)
-    if (!containerRef.current) return
-    const bounds = containerRef.current.getBoundingClientRect()
-    const centerX = bounds.left + (sticker.x / 100) * bounds.width
-    const centerY = bounds.top + (sticker.y / 100) * bounds.height
-    const distance = Math.hypot(pos.x - centerX, pos.y - centerY)
-
-    setIsResizing(true)
+    e.preventDefault()
+    const client = "touches" in e
+      ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      : { x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY }
+    const bounds = getContainerBounds()
+    if (!bounds) return
+    const originX = bounds.left + (sticker.x / 100) * bounds.width
+    const originY = bounds.top + (sticker.y / 100) * bounds.height
     resizeStartRef.current = {
-      scale: sticker.scale,
-      startDistance: distance,
+      clientX: client.x,
+      clientY: client.y,
+      startScale: sticker.scale,
+      startX: sticker.x,
+      startY: sticker.y,
+      originX,
+      originY,
     }
   }
 
   useEffect(() => {
-    if (!isResizing) return
-
     const handleMove = (e: MouseEvent | TouchEvent) => {
-      if (!resizeStartRef.current || !containerRef.current) return
-      const bounds = containerRef.current.getBoundingClientRect()
-      const pos = getEventPosition(e)
-
-      const centerX = bounds.left + (sticker.x / 100) * bounds.width
-      const centerY = bounds.top + (sticker.y / 100) * bounds.height
-      const currentDistance = Math.hypot(pos.x - centerX, pos.y - centerY)
-
-      const scaleRatio = currentDistance / resizeStartRef.current.startDistance
-      const newScale = Math.max(0.3, Math.min(3, resizeStartRef.current.scale * scaleRatio))
-
+      if (!resizeStartRef.current) return
+      const { x, y } = getClient(e)
+      const { originX, originY, clientX, clientY, startScale } = resizeStartRef.current
+      const startDist = Math.hypot(clientX - originX, clientY - originY)
+      const currDist = Math.hypot(x - originX, y - originY)
+      if (startDist < 1) return
+      const newScale = Math.max(0.3, Math.min(4, startScale * (currDist / startDist)))
       onUpdate({ scale: newScale })
     }
-
-    const handleUp = () => {
-      setIsResizing(false)
-      resizeStartRef.current = null
-    }
-
+    const handleUp = () => { resizeStartRef.current = null }
     document.addEventListener("mousemove", handleMove)
     document.addEventListener("mouseup", handleUp)
-    document.addEventListener("touchmove", handleMove)
+    document.addEventListener("touchmove", handleMove, { passive: true })
     document.addEventListener("touchend", handleUp)
-
     return () => {
       document.removeEventListener("mousemove", handleMove)
       document.removeEventListener("mouseup", handleUp)
       document.removeEventListener("touchmove", handleMove)
       document.removeEventListener("touchend", handleUp)
     }
-  }, [isResizing, containerRef, sticker.x, sticker.y, onUpdate])
+  }, [sticker.scale])
+
+  // ── Rotate ────────────────────────────────────────────────────────────────
 
   const handleRotateStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation()
-    onSelect()
-
-    const pos = getEventPosition(e)
-    if (!containerRef.current) return
-    const bounds = containerRef.current.getBoundingClientRect()
-    const centerX = bounds.left + (sticker.x / 100) * bounds.width
-    const centerY = bounds.top + (sticker.y / 100) * bounds.height
-    const angle = Math.atan2(pos.y - centerY, pos.x - centerX) * (180 / Math.PI)
-
-    setIsRotating(true)
-    rotateStartRef.current = {
-      rotation: sticker.rotation,
-      startAngle: angle,
-    }
+    e.preventDefault()
+    const client = "touches" in e
+      ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      : { x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY }
+    const bounds = getContainerBounds()
+    if (!bounds) return
+    const originX = bounds.left + (sticker.x / 100) * bounds.width
+    const originY = bounds.top + (sticker.y / 100) * bounds.height
+    const startAngle = Math.atan2(client.y - originY, client.x - originX) * (180 / Math.PI)
+    rotateStartRef.current = { originX, originY, startAngle, startRotation: sticker.rotation }
   }
 
   useEffect(() => {
-    if (!isRotating) return
-
     const handleMove = (e: MouseEvent | TouchEvent) => {
-      if (!rotateStartRef.current || !containerRef.current) return
-      const bounds = containerRef.current.getBoundingClientRect()
-      const pos = getEventPosition(e)
-
-      const centerX = bounds.left + (sticker.x / 100) * bounds.width
-      const centerY = bounds.top + (sticker.y / 100) * bounds.height
-      const currentAngle = Math.atan2(pos.y - centerY, pos.x - centerX) * (180 / Math.PI)
-      const deltaAngle = currentAngle - rotateStartRef.current.startAngle
-
-      onUpdate({ rotation: rotateStartRef.current.rotation + deltaAngle })
+      if (!rotateStartRef.current) return
+      const { x, y } = getClient(e)
+      const { originX, originY, startAngle, startRotation } = rotateStartRef.current
+      const angle = Math.atan2(y - originY, x - originX) * (180 / Math.PI)
+      onUpdate({ rotation: startRotation + (angle - startAngle) })
     }
-
-    const handleUp = () => {
-      setIsRotating(false)
-      rotateStartRef.current = null
-    }
-
+    const handleUp = () => { rotateStartRef.current = null }
     document.addEventListener("mousemove", handleMove)
     document.addEventListener("mouseup", handleUp)
-    document.addEventListener("touchmove", handleMove)
+    document.addEventListener("touchmove", handleMove, { passive: true })
     document.addEventListener("touchend", handleUp)
-
     return () => {
       document.removeEventListener("mousemove", handleMove)
       document.removeEventListener("mouseup", handleUp)
       document.removeEventListener("touchmove", handleMove)
       document.removeEventListener("touchend", handleUp)
     }
-  }, [isRotating, containerRef, sticker.x, sticker.y, onUpdate])
+  }, [sticker.rotation])
+
+  // Pill dimensions (approximate — matches canvas drawing)
+  const PILL_H = 26
+  const PILL_W_APPROX = sticker.text.length * 7 + 24
 
   return (
     <div
       ref={stickerRef}
-      className="absolute cursor-move select-none"
+      className="absolute"
       style={{
         left: `${sticker.x}%`,
         top: `${sticker.y}%`,
         transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
-        zIndex: isSelected ? 50 : 10,
+        transformOrigin: "center center",
+        cursor: "grab",
+        userSelect: "none",
         touchAction: "none",
+        zIndex: isSelected ? 20 : 10,
       }}
-      onMouseDown={handlePointerDown}
-      onTouchStart={handlePointerDown}
+      onMouseDown={handleDragStart}
+      onTouchStart={handleDragStart}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Sticker content */}
+      {/* The pill sticker itself */}
       <div
-        className="rounded-full px-3 py-1.5 font-sans text-xs font-semibold whitespace-nowrap"
+        className="flex items-center justify-center rounded-full px-3 font-sans text-xs font-semibold"
         style={{
           backgroundColor: sticker.bg,
           color: sticker.textColor,
+          height: PILL_H,
+          whiteSpace: "nowrap",
+          outline: isSelected ? "2px dashed rgba(203,68,106,0.8)" : "none",
+          outlineOffset: 3,
         }}
       >
         {sticker.text}
       </div>
 
-      {/* Selection handles */}
+      {/* Controls — only shown when selected */}
       {isSelected && (
         <>
-          {/* Selection outline */}
-          <div className="pointer-events-none absolute -inset-2 border-2 border-dashed border-pink-dark" />
-
-          {/* Delete button — outside top-right corner, z-index above resize handle */}
+          {/* Delete button — outside top-right corner */}
           <button
-            className="absolute flex size-5 items-center justify-center rounded-full bg-pink-dark text-white shadow-md"
-            style={{ top: "-20px", right: "-20px", zIndex: 60 }}
-            onClick={(e) => {
-              e.stopPropagation()
-              onDelete()
+            onMouseDown={(e) => { e.stopPropagation(); onDelete() }}
+            onTouchStart={(e) => { e.stopPropagation(); onDelete() }}
+            className="absolute flex items-center justify-center rounded-full bg-pink-dark text-white"
+            style={{
+              width: 20,
+              height: 20,
+              top: -14,
+              right: -14,
+              zIndex: 30,
+              cursor: "pointer",
+              touchAction: "none",
             }}
           >
             <X className="size-3" />
           </button>
 
-          {/* Rotation handle — dot at top of line, line extends down to selection box */}
+          {/* Rotation handle — dot above the sticker on a vertical line */}
           <div
-            className="absolute left-1/2 flex -translate-x-1/2 flex-col items-center"
-            style={{ bottom: "calc(100% + 8px)" }}
+            className="absolute left-1/2 -translate-x-1/2"
+            style={{ top: -(PILL_H / 2 + 28), display: "flex", flexDirection: "column", alignItems: "center", gap: 0 }}
           >
             <div
-              className="size-3 cursor-grab rounded-full border-2 border-pink-dark bg-white"
               onMouseDown={handleRotateStart}
               onTouchStart={handleRotateStart}
+              className="flex items-center justify-center rounded-full bg-pink-dark"
+              style={{ width: 14, height: 14, cursor: "grab", touchAction: "none", zIndex: 30 }}
             />
-            <div className="h-4 w-px bg-pink-dark" />
+            <div style={{ width: 1, height: 16, backgroundColor: "rgba(203,68,106,0.5)" }} />
           </div>
 
-          {/* Corner resize handles — all identical size-3 */}
-          {[
-            { pos: "-left-2 -top-2", cursor: "nwse-resize" },
-            { pos: "-right-2 -top-2", cursor: "nesw-resize" },
-            { pos: "-left-2 -bottom-2", cursor: "nesw-resize" },
-            { pos: "-right-2 -bottom-2", cursor: "nwse-resize" },
-          ].map((handle, i) => (
-            <div
-              key={i}
-              className={cn(
-                "absolute size-3 rounded-sm border-2 border-pink-dark bg-white",
-                handle.pos
-              )}
-              style={{ cursor: handle.cursor }}
-              onMouseDown={handleResizeStart}
-              onTouchStart={handleResizeStart}
-            />
-          ))}
+          {/* Resize handle — bottom-right corner */}
+          <div
+            onMouseDown={handleResizeStart}
+            onTouchStart={handleResizeStart}
+            className="absolute rounded-sm bg-pink-dark"
+            style={{
+              width: 12,
+              height: 12,
+              bottom: -6,
+              right: -6,
+              cursor: "se-resize",
+              touchAction: "none",
+              zIndex: 30,
+            }}
+          />
         </>
       )}
     </div>
@@ -1223,50 +1220,49 @@ function DraggableSticker({
 }
 
 /* ============================================================
-   Save Image Modal (mobile long-press to save)
+   Save Image Modal (mobile)
    ============================================================ */
 
-function SaveImageModal({ url, filename, onClose }: { url: string; filename: string; onClose: () => void }) {
+function SaveImageModal({
+  url,
+  filename,
+  onClose,
+}: {
+  url: string
+  filename: string
+  onClose: () => void
+}) {
   const handleBrowserDownload = () => {
     const link = document.createElement("a")
     link.download = filename
     link.href = url
     link.click()
+    onClose()
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="flex max-h-[90vh] w-full max-w-sm flex-col gap-4 rounded-xl bg-card p-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="text-center">
-          <h3 className="font-mono text-base font-medium text-foreground">Save Image</h3>
-          <p className="mt-1 font-sans text-sm text-muted-foreground">
-            Hold down on the image to save it to your photos.
-          </p>
-        </div>
-
-        {/* The image — user long-presses this on mobile */}
-        <div className="flex items-center justify-center overflow-hidden rounded-lg bg-black/10 p-3">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-xl">
+        <h3 className="mb-2 text-center font-mono text-base font-medium text-foreground">
+          Save your image
+        </h3>
+        <p className="mb-4 text-center font-sans text-sm text-muted-foreground">
+          Press and hold the image below, then tap "Save to Photos"
+        </p>
+        <div className="mb-4 flex justify-center">
           <img
             src={url}
-            alt="Your drank receipt"
-            className="max-h-[52vh] w-full object-contain"
-            draggable={false}
+            alt="Receipt to save"
+            className="max-h-64 rounded-lg object-contain shadow-md"
           />
         </div>
-
-        <div className="flex flex-col items-center gap-2">
-          <button
+        <div className="flex flex-col gap-2">
+          <Button
+            className="w-full bg-brown font-sans text-sm text-white hover:bg-brown/90"
             onClick={onClose}
-            className="font-mono text-sm text-foreground transition-colors hover:opacity-70"
           >
             Done
-          </button>
+          </Button>
           <button
             onClick={handleBrowserDownload}
             className="font-sans text-xs text-muted-foreground underline transition-colors hover:opacity-70"
@@ -1330,7 +1326,6 @@ function ForegroundSelectionModal({
   useEffect(() => {
     const handleMove = (e: MouseEvent | TouchEvent) => {
       if (!dragModeRef.current || !dragStartRef.current || !containerRef.current) return
-      // Prevent scroll while interacting inside the modal
       e.preventDefault()
 
       const bounds = containerRef.current.getBoundingClientRect()
@@ -1345,9 +1340,8 @@ function ForegroundSelectionModal({
         x = Math.max(0, Math.min(100 - width, r.x + dx))
         y = Math.max(0, Math.min(100 - height, r.y + dy))
       } else {
-        // Corner resize — keep opposite corner fixed
-        let x2 = r.x + r.width   // right
-        let y2 = r.y + r.height  // bottom
+        let x2 = r.x + r.width
+        let y2 = r.y + r.height
 
         if (dragModeRef.current === "nw") {
           x = Math.min(x2 - MIN_SIZE, Math.max(0, r.x + dx))
@@ -1368,7 +1362,6 @@ function ForegroundSelectionModal({
           width = Math.max(MIN_SIZE, Math.min(100 - r.x, r.width + dx))
           height = Math.max(MIN_SIZE, Math.min(100 - r.y, r.height + dy))
         }
-        // Clamp right/bottom edges
         if (x + width > 100) width = 100 - x
         if (y + height > 100) height = 100 - y
       }
@@ -1422,7 +1415,6 @@ function ForegroundSelectionModal({
           <p className="font-sans text-sm text-muted-foreground">Drag the box and resize the corners around your drink</p>
         </div>
 
-        {/* Image container — object-contain, touch events blocked from scrolling */}
         <div
           ref={containerRef}
           className="relative overflow-hidden rounded-lg bg-black select-none"
@@ -1436,7 +1428,6 @@ function ForegroundSelectionModal({
             draggable={false}
           />
 
-          {/* Selection box */}
           <div
             className="absolute border-2 border-pink-dark bg-pink/20"
             style={{
@@ -1451,7 +1442,6 @@ function ForegroundSelectionModal({
             onMouseDown={(e) => startDrag("move", e)}
             onTouchStart={(e) => startDrag("move", e)}
           >
-            {/* Corner handles */}
             {(["nw","ne","sw","se"] as const).map((corner) => (
               <div
                 key={corner}
@@ -1499,6 +1489,7 @@ async function generateReceiptCanvas(
   const SCALE = 2
   const LW = 280  // logical width — matches preview receipt width
   const LP = 20   // logical side padding — matches px-5
+  const SM = 12   // outer margin — gives the receipt breathing room in the story canvas
   const ctx = canvas.getContext("2d")
   if (!ctx) return null
 
@@ -1510,6 +1501,8 @@ async function generateReceiptCanvas(
     document.fonts.load("300 12px 'Space Mono'"),
     document.fonts.load("400 18px 'Space Mono'"),
     document.fonts.load("500 18px 'Space Mono'"),
+    document.fonts.load("500 14px 'Space Mono'"),
+    document.fonts.load("500 24px 'Space Mono'"),
   ])
 
   // textBaseline "top" means y always = top of character, matching CSS behaviour
@@ -1526,20 +1519,20 @@ async function generateReceiptCanvas(
 
   // ── Pre-measure total height ───────────────────────────────────────────────
   // These match the Tailwind classes in ReceiptContent exactly:
-  // py-6 = 24px top+bottom, mb-2 = 8px, text-xs = 12px, text-lg = 18px, etc.
+  // py-6 = 24px top+bottom, mb-3 = 12px, text-xs = 12px, text-lg = 18px, etc.
   const ratingDiam = 56   // size-14 = 56px
   const ratingR = ratingDiam / 2
 
-  // Set a dummy canvas size for measuring
-  canvas.width = LW * SCALE
+  // Set a dummy canvas size for measuring (SM margin not needed for text measurement)
+  canvas.width = (LW + SM * 2) * SCALE
   canvas.height = 10
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.scale(SCALE, SCALE)
   ctx.textBaseline = "top"
 
-  // Measure drink name wrapping (text-lg = 18px, font-medium)
-  ctx.font = "500 18px 'Space Mono', monospace"
-  const drinkWords = (data.drinkName || "Beverage").split(" ")
+  // Measure drink name wrapping (text-2xl = 24px, font-medium)
+  ctx.font = "500 24px 'Space Mono', monospace"
+  const drinkWords = (data.drinkName?.trim() || "Beverage").split(/\s+/)
   let drinkLine = "", drinkLines: string[] = []
   for (const word of drinkWords) {
     const test = drinkLine ? `${drinkLine} ${word}` : word
@@ -1548,11 +1541,25 @@ async function generateReceiptCanvas(
   }
   if (drinkLine) drinkLines.push(drinkLine)
 
+  // Measure customizations wrapping (text-sm = 14px, font-medium)
+  let customizationLines: string[] = []
+  if (customizations.length > 0) {
+    ctx.font = "500 14px 'Space Mono', monospace"
+    const cWords = customizations.join(", ").split(/\s+/)
+    let cLine = ""
+    for (const word of cWords) {
+      const test = cLine ? `${cLine} ${word}` : word
+      if (ctx.measureText(test).width > LW - LP * 2) { customizationLines.push(cLine); cLine = word }
+      else cLine = test
+    }
+    if (cLine) customizationLines.push(cLine)
+  }
+
   // Measure notes wrapping (text-xs = 12px)
   let noteLines: string[] = []
-  if (data.comments) {
+  if (data.comments?.trim()) {
     ctx.font = "300 12px 'Space Mono', monospace"
-    const nWords = `Notes: ${data.comments}`.split(" ")
+    const nWords = `Notes: ${data.comments.trim()}`.split(/\s+/)
     let nLine = ""
     for (const word of nWords) {
       const test = nLine ? `${nLine} ${word}` : word
@@ -1567,36 +1574,37 @@ async function generateReceiptCanvas(
   let h = 24
   h += ratingDiam + 12   // rating circle + mb-3
   h += 12 + 12           // cafe text-xs + mb-3
-  h += drinkLines.length * 22 + 12  // drink name lines (18px + ~4px leading) + mb-3
-  if (customizations.length > 0) h += 12 + 12  // text-xs + mb-3
+  h += drinkLines.length * 28 + 12  // drink name lines (24px + ~4px leading) + mb-3
+  if (customizations.length > 0) h += customizationLines.length * 18 + 12  // lines (14px + ~4px leading) + mb-3
   if (stickerImg) {
     const maxW = LW - LP * 2, maxH = 140
     const s = Math.min(maxW / stickerImg.width, maxH / stickerImg.height)
-    h += 12 + stickerImg.height * s + 12  // my-3 top + sticker + my-3 bottom
+    h += stickerImg.height * s + 4  // sticker + my-1 bottom
   }
-  if (data.comments) h += noteLines.length * 16 + 12  // notes + mb-3
-  if (data.location) h += 12 + 4                      // location + small gap
+  if (data.comments?.trim()) h += noteLines.length * 16 + 12  // notes + mb-3
+  if (data.location?.trim()) h += 12 + 4                      // location + small gap
   h += 12 + 12   // date/time text + mb-3
   h += 1 + 12    // divider border + mb-3
-  h += 12       // footer text-xs
-  h += 24       // py-6 bottom padding
+  h += 12        // footer text-xs
+  h += 24        // py-6 bottom padding
 
   // ── Set final canvas size and redraw ──────────────────────────────────────
-  canvas.width = LW * SCALE
-  canvas.height = h * SCALE
+  // Canvas is LW + 2*SM wide and h + 2*SM tall — the SM margin gives the receipt breathing room.
+  canvas.width = (LW + SM * 2) * SCALE
+  canvas.height = (h + SM * 2) * SCALE
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.scale(SCALE, SCALE)
   ctx.textBaseline = "top"
 
-  // Background
+  // Fill receipt background
   ctx.fillStyle = RECEIPT_BG
-  roundRect(ctx, 0, 0, LW, h, RECEIPT_RADIUS)
+  roundRect(ctx, SM, SM, LW, h, RECEIPT_RADIUS)
   ctx.fill()
 
-  let y = 24  // start after py-6 top
+  let y = SM + 24  // SM outer margin + py-6 top padding
+  const cx = SM + LW / 2  // horizontal center shifted by SM
 
   // ── Rating circle ─────────────────────────────────────────────────────────
-  const cx = LW / 2
   ctx.beginPath()
   ctx.arc(cx, y + ratingR, ratingR, 0, Math.PI * 2)
   ctx.strokeStyle = TEXT_COLOR
@@ -1619,23 +1627,24 @@ async function generateReceiptCanvas(
   ctx.textBaseline = "top"
   y += ratingDiam + 12  // circle height + mb-3
 
-  // ── Cafe name (text-xs, font-medium, mb-1) ────────────────────────────────
+  // ── Cafe name (text-xs, font-medium, mb-3) ────────────────────────────────
   ctx.font = "500 12px 'Space Mono', monospace"
   ctx.fillStyle = TEXT_COLOR
   ctx.textAlign = "center"
-  ctx.fillText(data.cafeName || "cafe", cx, y)
+  ctx.fillText((data.cafeName?.trim()) || "cafe", cx, y)
   y += 12 + 12  // font size + mb-3
 
-  // ── Drink name (text-lg, font-medium, mb-2) ───────────────────────────────
-  ctx.font = "500 18px 'Space Mono', monospace"
-  for (const l of drinkLines) { ctx.fillText(l, cx, y); y += 22 }
+  // ── Drink name (text-2xl, font-medium, mb-3) ───────────────────────────────
+  ctx.font = "500 24px 'Space Mono', monospace"
+  for (const l of drinkLines) { ctx.fillText(l, cx, y); y += 28 }
   y += 12  // mb-3
 
-  // ── Customizations (text-xs, font-medium, mb-2) ───────────────────────────
+  // ── Customizations (text-sm, font-medium, mb-3) ───────────────────────────
   if (customizations.length > 0) {
-    ctx.font = "500 12px 'Space Mono', monospace"
-    ctx.fillText(customizations.join(", "), cx, y)
-    y += 12 + 12  // font + mb-3
+    ctx.font = "500 14px 'Space Mono', monospace"
+    ctx.textAlign = "center"
+    for (const l of customizationLines) { ctx.fillText(l, cx, y); y += 18 }
+    y += 12  // mb-3
   }
 
   // ── Drink sticker (my-1) ──────────────────────────────────────────────────
@@ -1643,28 +1652,27 @@ async function generateReceiptCanvas(
     const maxW = LW - LP * 2, maxH = 140
     const s = Math.min(maxW / stickerImg.width, maxH / stickerImg.height)
     const sw = stickerImg.width * s, sh = stickerImg.height * s
-    y += 12  // my-3 top
-    ctx.drawImage(stickerImg, (LW - sw) / 2, y, sw, sh)
-    y += sh + 12  // sticker + my-3 bottom
+    ctx.drawImage(stickerImg, SM + (LW - sw) / 2, y, sw, sh)
+    y += sh + 4  // sticker + my-1 bottom
   }
 
-  // ── Notes (text-xs, font-light, mb-2, left-aligned) ──────────────────────
-  if (data.comments) {
+  // ── Notes (text-xs, font-light, mb-3, left-aligned) ──────────────────────
+  if (data.comments?.trim()) {
     ctx.font = "300 12px 'Space Mono', monospace"
     ctx.textAlign = "left"
-    for (const l of noteLines) { ctx.fillText(l, LP, y); y += 16 }
+    for (const l of noteLines) { ctx.fillText(l, SM + LP, y); y += 16 }
     y += 12  // mb-3
   }
 
-  // ── Location (text-xs, font-light) ────────────────────────────────────────
-  if (data.location) {
+  // ── Location (text-xs, font-light, no bottom margin) ─────────────────────
+  if (data.location?.trim()) {
     ctx.font = "300 12px 'Space Mono', monospace"
     ctx.textAlign = "left"
-    ctx.fillText(data.location, LP, y)
-    y += 12 + 4
+    ctx.fillText(data.location.trim(), SM + LP, y)
+    y += 12 + 4  // font + small gap before date
   }
 
-  // ── Date/Time (text-xs, font-light, mb-2) ─────────────────────────────────
+  // ── Date/Time (text-xs, font-light, mb-3) ─────────────────────────────────
   const dateStr = data.date ? data.date.replace(/-/g, "") : "YYYYMMDD"
   const timeStr = data.time ? (() => {
     const [hours, minutes] = data.time.split(":")
@@ -1675,16 +1683,16 @@ async function generateReceiptCanvas(
   })() : "12:00 AM"
   ctx.font = "300 12px 'Space Mono', monospace"
   ctx.textAlign = "left"
-  ctx.fillText(`${dateStr} ${timeStr}`, LP, y)
+  ctx.fillText(`${dateStr} ${timeStr}`, SM + LP, y)
   y += 12 + 12  // font + mb-3
 
-  // ── Divider (mb-2) ────────────────────────────────────────────────────────
+  // ── Divider (mb-3) ────────────────────────────────────────────────────────
   ctx.strokeStyle = TEXT_COLOR
   ctx.globalAlpha = 0.2
   ctx.lineWidth = 1
   ctx.beginPath()
-  ctx.moveTo(LP, y)
-  ctx.lineTo(LW - LP, y)
+  ctx.moveTo(SM + LP, y)
+  ctx.lineTo(SM + LW - LP, y)
   ctx.stroke()
   ctx.globalAlpha = 1
   y += 1 + 12  // line + mb-3
@@ -1703,10 +1711,12 @@ async function generateReceiptCanvas(
   ctx.fillText("drank", cx - totalFW / 2 + normW + boldW / 2, y)
 
   // ── Placed stickers ───────────────────────────────────────────────────────
+  // Sticker x/y percentages are relative to the receipt card area (LW × h),
+  // offset by SM on both axes to align with the shifted card.
   ctx.textBaseline = "middle"
   for (const sticker of placedStickers) {
-    const sx = (sticker.x / 100) * LW
-    const sy = (sticker.y / 100) * h
+    const sx = SM + (sticker.x / 100) * LW
+    const sy = SM + (sticker.y / 100) * h
     ctx.save()
     ctx.translate(sx, sy)
     ctx.rotate((sticker.rotation * Math.PI) / 180)
