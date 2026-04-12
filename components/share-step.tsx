@@ -56,6 +56,37 @@ interface PlacedSticker {
 }
 
 /* ============================================================
+   Snap Guidelines
+   ============================================================ */
+
+interface SnapLine {
+  axis: "h" | "v"   // horizontal = constant Y, vertical = constant X
+  position: number   // percentage 0-100
+}
+
+const SNAP_THRESHOLD = 3 // percent — ~6-8px on a 220px canvas
+
+/** Given a candidate position and a list of snap targets (all in %), return
+ *  the snapped value and any active guideline, or null if no snap. */
+function applySnap(
+  value: number,
+  targets: number[],
+): { snapped: number; guideline: number | null } {
+  let best: number | null = null
+  let bestDist = SNAP_THRESHOLD
+  for (const t of targets) {
+    const d = Math.abs(value - t)
+    if (d < bestDist) {
+      best = t
+      bestDist = d
+    }
+  }
+  return best !== null
+    ? { snapped: best, guideline: best }
+    : { snapped: value, guideline: null }
+}
+
+/* ============================================================
    Main Component
    ============================================================ */
 
@@ -81,6 +112,66 @@ interface SelectionRect {
 const RECEIPT_BG = "rgba(254,252,244,0.9)"
 const RECEIPT_RADIUS = 2
 const TEXT_COLOR = "#473C23"
+
+/** Scan an ImageData for the bounding box of the drink's dense pixel region.
+ *
+ *  Strategy: build a per-column and per-row histogram of opaque pixels (alpha > 30).
+ *  Then find the outermost column/row whose density exceeds a threshold — this ignores
+ *  stray halo pixels that bg-removal leaves far from the actual drink.
+ *
+ *  Threshold: a column/row must contain at least 0.5% of its length in opaque pixels
+ *  to count as "part of the drink". Single stray pixels never qualify.
+ *
+ *  The X axis is symmetrised around the drink's visual center so the cropped PNG
+ *  centers the drink when flex-centered in the receipt.
+ */
+function getTightBoundingBox(imageData: ImageData): { x: number; y: number; w: number; h: number } | null {
+  const { data, width, height } = imageData
+
+  // Build histograms
+  const colCount = new Int32Array(width)   // opaque pixels per column
+  const rowCount = new Int32Array(height)  // opaque pixels per row
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * 4 + 3] > 30) {
+        colCount[x]++
+        rowCount[y]++
+      }
+    }
+  }
+
+  // A column qualifies if it has > 0.5% of the image height in opaque pixels
+  const colThreshold = Math.max(2, height * 0.005)
+  // A row qualifies if it has > 0.5% of the image width in opaque pixels
+  const rowThreshold = Math.max(2, width * 0.005)
+
+  let minX = -1, maxX = -1, minY = -1, maxY = -1
+
+  for (let x = 0; x < width; x++) {
+    if (colCount[x] >= colThreshold) { if (minX === -1) minX = x; maxX = x }
+  }
+  for (let y = 0; y < height; y++) {
+    if (rowCount[y] >= rowThreshold) { if (minY === -1) minY = y; maxY = y }
+  }
+
+  if (minX === -1 || minY === -1) return null
+
+  // Tight crop — no symmetry padding. The img is flex-centered in the receipt,
+  // so the PNG just needs to contain exactly the drink pixels.
+  const symMinX = minX
+  const symMaxX = maxX
+
+  const result = { x: symMinX, y: minY, w: symMaxX - symMinX + 1, h: maxY - minY + 1 }
+  console.log(
+    `[drank] tight-crop: ${width}×${height} →`,
+    `raw bbox x${minX}–${maxX} y${minY}–${maxY}`,
+    `sym bbox x${symMinX}–${symMaxX}`,
+    `→ ${result.w}×${result.h}`,
+    `(margins L:${symMinX} R:${width-symMaxX-1} T:${minY} B:${height-maxY-1})`
+  )
+  return result
+}
 
 export function ShareStep({
   data,
@@ -259,13 +350,93 @@ export function ShareStep({
 
       const result = await removeBackground(croppedBlob)
 
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setBgRemovedImage(reader.result as string)
+
+      // ── Tight-crop: trim transparent pixels from the bg-removed result ──────
+      // Use createImageBitmap directly on the Blob — never taints the canvas,
+      // no FileReader→Image round-trip needed, guaranteed readable pixel data.
+      let bitmap: ImageBitmap
+      try {
+        bitmap = await createImageBitmap(result)
+      } catch (bitmapErr) {
+        console.warn("[drank] createImageBitmap failed, falling back to FileReader:", bitmapErr)
+        const fallbackUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.onerror = () => reject(new Error("FileReader failed"))
+          reader.readAsDataURL(result)
+        })
+        setBgRemovedImage(fallbackUrl)
         setShowDrinkSticker(true)
         setIsBgProcessing(false)
+        return
       }
-      reader.readAsDataURL(result)
+
+      console.log(`[drank] bg-removed bitmap: ${bitmap.width}×${bitmap.height}`)
+
+      const scanCanvas = document.createElement("canvas")
+      scanCanvas.width = bitmap.width
+      scanCanvas.height = bitmap.height
+      const scanCtx = scanCanvas.getContext("2d", { willReadFrequently: true })
+
+      if (!scanCtx || bitmap.width === 0 || bitmap.height === 0) {
+        console.warn("[drank] scanCtx unavailable or zero-size bitmap")
+        // Fallback: convert blob to data URL and use without cropping
+        const fallbackUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.onerror = () => reject(new Error("FileReader failed"))
+          reader.readAsDataURL(result)
+        })
+        setBgRemovedImage(fallbackUrl)
+        setShowDrinkSticker(true)
+        setIsBgProcessing(false)
+        return
+      }
+
+      scanCtx.drawImage(bitmap, 0, 0)
+      bitmap.close()
+
+      let imageData: ImageData
+      try {
+        imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height)
+      } catch (readErr) {
+        console.warn("[drank] getImageData failed (canvas tainted?):", readErr)
+        setBgRemovedImage(scanCanvas.toDataURL("image/png"))
+        setShowDrinkSticker(true)
+        setIsBgProcessing(false)
+        return
+      }
+
+      const bbox = getTightBoundingBox(imageData)
+
+      if (!bbox) {
+        console.warn("[drank] no visible pixels found in bg-removed image")
+        // No visible pixels at all — fall back to full image
+        const fallbackUrl = scanCanvas.toDataURL("image/png")
+        setBgRemovedImage(fallbackUrl)
+        setShowDrinkSticker(true)
+        setIsBgProcessing(false)
+        return
+      }
+
+      // Crop scanCanvas to the tight bounding box
+      const tightCanvas = document.createElement("canvas")
+      tightCanvas.width = bbox.w
+      tightCanvas.height = bbox.h
+      const tightCtx = tightCanvas.getContext("2d")
+      if (!tightCtx) {
+        setBgRemovedImage(scanCanvas.toDataURL("image/png"))
+        setShowDrinkSticker(true)
+        setIsBgProcessing(false)
+        return
+      }
+      tightCtx.drawImage(scanCanvas, bbox.x, bbox.y, bbox.w, bbox.h, 0, 0, bbox.w, bbox.h)
+      const tightUrl = tightCanvas.toDataURL("image/png")
+      console.log(`[drank] tight-crop complete: storing ${bbox.w}×${bbox.h} PNG`)
+
+      setBgRemovedImage(tightUrl)
+      setShowDrinkSticker(true)
+      setIsBgProcessing(false)
     } catch (error) {
       console.error("Background removal failed:", error)
       setBgError(pickError(ERRORS.bgRemovalFailed))
@@ -630,7 +801,7 @@ export function ShareStep({
               {/* Stickers panel - single responsive wrapping group */}
               <div className="rounded-xl border border-border bg-card p-4">
                 <p className="mb-3 text-center font-mono text-xs text-muted-foreground">
-                  select a tag to place it on your {activeTab === "story" ? "story" : "receipt"}
+                  select a sticker to place it on your {activeTab === "story" ? "story" : "receipt"}
                 </p>
                 <div className="flex flex-wrap justify-center gap-3">
                   {STICKER_GROUPS.flat().map((sticker) => (
@@ -724,6 +895,10 @@ function InteractiveCanvas({
   storyReceiptUrl?: string | null
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const receiptRef = useRef<HTMLDivElement>(null)
+
+  // Active snap guidelines — set while a sticker is being dragged
+  const [snapLines, setSnapLines] = useState<SnapLine[]>([])
 
   const customizations: string[] = []
   if (data.iceTemp) customizations.push(toTitleCase(data.iceTemp))
@@ -748,15 +923,71 @@ function InteractiveCanvas({
     return `${h12}:${minutes} ${ampm}`
   }
 
-  const handleContainerClick = (e: React.MouseEvent) => {
+  const handleContainerClick = () => {
     onCanvasClick()
   }
+
+  /** Called by DraggableSticker while dragging — compute snap targets and apply. */
+  const handleStickerDrag = useCallback((
+    id: string,
+    rawX: number,
+    rawY: number,
+  ): { x: number; y: number } => {
+    const container = containerRef.current
+    if (!container) return { x: rawX, y: rawY }
+
+    // ── Build snap targets ──────────────────────────────────────────────────
+    const xTargets: number[] = [50] // canvas horizontal center
+    const yTargets: number[] = [50] // canvas vertical center
+
+    // Other stickers' centers
+    for (const s of placedStickers) {
+      if (s.id !== id) {
+        xTargets.push(s.x)
+        yTargets.push(s.y)
+      }
+    }
+
+    // Receipt card bounds (story mode only — the receipt floats inside the story canvas)
+    if (mode === "story" && receiptRef.current && container) {
+      const cRect = container.getBoundingClientRect()
+      const rRect = receiptRef.current.getBoundingClientRect()
+      // Convert receipt rect to container-% coordinates
+      const rLeft   = ((rRect.left   - cRect.left)  / cRect.width)  * 100
+      const rRight  = ((rRect.right  - cRect.left)  / cRect.width)  * 100
+      const rTop    = ((rRect.top    - cRect.top)   / cRect.height) * 100
+      const rBottom = ((rRect.bottom - cRect.top)   / cRect.height) * 100
+      const rCenterX = (rLeft + rRight) / 2
+      const rCenterY = (rTop + rBottom) / 2
+      xTargets.push(rLeft, rRight, rCenterX)
+      yTargets.push(rTop, rBottom, rCenterY)
+    }
+
+    // ── Apply snap ──────────────────────────────────────────────────────────
+    const snapX = applySnap(rawX, xTargets)
+    const snapY = applySnap(rawY, yTargets)
+
+    // Build active guideline list
+    const newLines: SnapLine[] = []
+    if (snapX.guideline !== null) newLines.push({ axis: "v", position: snapX.guideline })
+    if (snapY.guideline !== null) newLines.push({ axis: "h", position: snapY.guideline })
+    setSnapLines(newLines)
+
+    return { x: snapX.snapped, y: snapY.snapped }
+  }, [placedStickers, mode])
+
+  const handleStickerDragEnd = useCallback(() => {
+    setSnapLines([])
+  }, [])
 
   if (mode === "story" && backgroundImage) {
     // Story mode: 9:16 aspect ratio, constrained so download button is never pushed off screen
     return (
       <div
-        ref={(el) => { (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el; if (storyPreviewRef) (storyPreviewRef as React.MutableRefObject<HTMLDivElement | null>).current = el }}
+        ref={(el) => {
+          (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+          if (storyPreviewRef) (storyPreviewRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+        }}
         onClick={handleContainerClick}
         className="relative mx-auto overflow-hidden"
         style={{
@@ -776,13 +1007,43 @@ function InteractiveCanvas({
         {/* Receipt overlay — screenshot of the real receipt, scaled to fit */}
         {storyReceiptUrl && (
           <img
+            ref={receiptRef as React.RefObject<HTMLImageElement>}
             src={storyReceiptUrl}
             alt="receipt"
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ width: "70%", display: "block", borderRadius: 24}}
+            style={{ width: "70%", display: "block", borderRadius: 4 }}
             draggable={false}
           />
         )}
+
+        {/* Snap guidelines */}
+        {snapLines.map((line, i) => (
+          <div
+            key={i}
+            className="pointer-events-none absolute"
+            style={
+              line.axis === "h"
+                ? {
+                    top: `${line.position}%`,
+                    left: 0,
+                    right: 0,
+                    height: 1,
+                    backgroundColor: "#CB446A",
+                    opacity: 0.8,
+                    zIndex: 50,
+                  }
+                : {
+                    left: `${line.position}%`,
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    backgroundColor: "#CB446A",
+                    opacity: 0.8,
+                    zIndex: 50,
+                  }
+            }
+          />
+        ))}
 
         {/* Placed stickers */}
         {placedStickers.map((sticker) => (
@@ -794,6 +1055,8 @@ function InteractiveCanvas({
             onUpdate={(updates) => onUpdateSticker(sticker.id, updates)}
             onDelete={() => onDeleteSticker(sticker.id)}
             containerRef={containerRef}
+            onDrag={handleStickerDrag}
+            onDragEnd={handleStickerDragEnd}
           />
         ))}
       </div>
@@ -818,6 +1081,35 @@ function InteractiveCanvas({
           formatTime={formatTimeLocal}
         />
 
+        {/* Snap guidelines — clipped to receipt */}
+        {snapLines.map((line, i) => (
+          <div
+            key={i}
+            className="pointer-events-none absolute"
+            style={
+              line.axis === "h"
+                ? {
+                    top: `${line.position}%`,
+                    left: 0,
+                    right: 0,
+                    height: 1,
+                    backgroundColor: "#CB446A",
+                    opacity: 0.8,
+                    zIndex: 50,
+                  }
+                : {
+                    left: `${line.position}%`,
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    backgroundColor: "#CB446A",
+                    opacity: 0.8,
+                    zIndex: 50,
+                  }
+            }
+          />
+        ))}
+
         {/* Placed stickers — inside receipt div so they are bounded to it */}
         {placedStickers.map((sticker) => (
           <DraggableSticker
@@ -828,6 +1120,8 @@ function InteractiveCanvas({
             onUpdate={(updates) => onUpdateSticker(sticker.id, updates)}
             onDelete={() => onDeleteSticker(sticker.id)}
             containerRef={containerRef}
+            onDrag={handleStickerDrag}
+            onDragEnd={handleStickerDragEnd}
           />
         ))}
       </div>
@@ -910,11 +1204,12 @@ function ReceiptContent({
           </div>
         </div>
       ) : stickerImage ? (
-        <div className="mb-1 flex justify-center">
+        <div className={cn("mb-3 flex justify-center", small ? "max-h-[80px]" : "max-h-[140px]")}>
           <img
             src={stickerImage}
             alt="Drink sticker"
-            className={cn("object-contain", small ? "max-h-[80px] max-w-[110px]" : "max-h-[140px] max-w-full")}
+            className={cn("block h-auto w-auto", small ? "max-h-[80px] max-w-[110px]" : "max-h-[140px] max-w-full")}
+            style={{ display: "block" }}
           />
         </div>
       ) : null}
@@ -960,6 +1255,8 @@ function DraggableSticker({
   onUpdate,
   onDelete,
   containerRef,
+  onDrag,
+  onDragEnd,
 }: {
   sticker: PlacedSticker
   isSelected: boolean
@@ -967,6 +1264,10 @@ function DraggableSticker({
   onUpdate: (updates: Partial<PlacedSticker>) => void
   onDelete: () => void
   containerRef: React.RefObject<HTMLDivElement | null>
+  /** Called during drag — returns snapped {x, y} and fires guideline updates */
+  onDrag: (id: string, rawX: number, rawY: number) => { x: number; y: number }
+  /** Called when drag ends — clears guidelines */
+  onDragEnd: () => void
 }) {
   const stickerRef = useRef<HTMLDivElement>(null)
 
@@ -1024,12 +1325,17 @@ function DraggableSticker({
       const { x, y } = getClient(e)
       const dx = ((x - dragStartRef.current.clientX) / bounds.width) * 100
       const dy = ((y - dragStartRef.current.clientY) / bounds.height) * 100
-      onUpdate({
-        x: Math.max(0, Math.min(100, dragStartRef.current.startX + dx)),
-        y: Math.max(0, Math.min(100, dragStartRef.current.startY + dy)),
-      })
+      const rawX = Math.max(0, Math.min(100, dragStartRef.current.startX + dx))
+      const rawY = Math.max(0, Math.min(100, dragStartRef.current.startY + dy))
+      const snapped = onDrag(sticker.id, rawX, rawY)
+      onUpdate({ x: snapped.x, y: snapped.y })
     }
-    const handleUp = () => { dragStartRef.current = null }
+    const handleUp = () => {
+      if (dragStartRef.current) {
+        onDragEnd()
+        dragStartRef.current = null
+      }
+    }
     document.addEventListener("mousemove", handleMove)
     document.addEventListener("mouseup", handleUp)
     document.addEventListener("touchmove", handleMove, { passive: true })
@@ -1040,7 +1346,7 @@ function DraggableSticker({
       document.removeEventListener("touchmove", handleMove)
       document.removeEventListener("touchend", handleUp)
     }
-  }, [sticker.x, sticker.y])
+  }, [sticker.x, sticker.y, sticker.id, onDrag, onDragEnd])
 
   // ── Resize ────────────────────────────────────────────────────────────────
 
@@ -1399,12 +1705,10 @@ function ForegroundSelectionModal({
     position: "absolute",
     width: 20,
     height: 20,
-    borderRadius: 4,
-    border: "2px solid #CB446A",
-    backgroundColor: "white",
-    touchAction: "none",
-    cursor: "pointer",
+    borderRadius: "50%",
+    backgroundColor: "#CB446A",
     zIndex: 10,
+    touchAction: "none",
   }
 
   return (
@@ -1487,27 +1791,30 @@ async function generateReceiptCanvas(
 
   // Render at 2x for sharpness. All coords are logical (1x) pixels.
   const SCALE = 2
-  const LW = 280  // logical width — matches preview receipt width
-  const LP = 20   // logical side padding — matches px-5
-  const SM = 12   // outer margin — gives the receipt breathing room in the story canvas
-  const ctx = canvas.getContext("2d")
-  if (!ctx) return null
+  const LW = 280   // logical width
+  const LP = 20    // logical side padding (px-5)
+  const SM = 0     // left margin inside canvas (no extra margin)
 
-  // Pre-load fonts before measuring/drawing
-  await Promise.all([
-    document.fonts.load("600 12px 'Instrument Sans'"),
-    document.fonts.load("400 12px 'Space Mono'"),
-    document.fonts.load("500 12px 'Space Mono'"),
-    document.fonts.load("300 12px 'Space Mono'"),
-    document.fonts.load("400 18px 'Space Mono'"),
-    document.fonts.load("500 18px 'Space Mono'"),
-    document.fonts.load("500 14px 'Space Mono'"),
-    document.fonts.load("500 24px 'Space Mono'"),
-  ])
+  // ── Helper: wrap text ────────────────────────────────────────────────────
+  function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+    const words = text.split(" ")
+    const lines: string[] = []
+    let line = ""
+    for (const word of words) {
+      const test = line ? line + " " + word : word
+      if (ctx.measureText(test).width > maxWidth && line) {
+        lines.push(line)
+        line = word
+      } else {
+        line = test
+      }
+    }
+    if (line) lines.push(line)
+    return lines.length ? lines : [""]
+  }
 
-  // textBaseline "top" means y always = top of character, matching CSS behaviour
-  ctx.textBaseline = "top"
-
+  // ── Build customizations string ─────────────────────────────────────────
+  function toTitleCase(s: string) { return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : "" }
   const customizations: string[] = []
   if (data.iceTemp) customizations.push(toTitleCase(data.iceTemp))
   if (data.iceLevel) customizations.push(`${toTitleCase(data.iceLevel)} Ice`)
@@ -1517,106 +1824,89 @@ async function generateReceiptCanvas(
   if (data.toppings.length > 0) customizations.push(...data.toppings.map(toTitleCase))
   if (data.otherCustomizations) customizations.push(toTitleCase(data.otherCustomizations))
 
-  // ── Pre-measure total height ───────────────────────────────────────────────
-  // These match the Tailwind classes in ReceiptContent exactly:
-  // py-6 = 24px top+bottom, mb-3 = 12px, text-xs = 12px, text-lg = 18px, etc.
-  const ratingDiam = 56   // size-14 = 56px
-  const ratingR = ratingDiam / 2
-
-  // Set a dummy canvas size for measuring (SM margin not needed for text measurement)
+  // ── Pass 1: measure total height ─────────────────────────────────────────
   canvas.width = (LW + SM * 2) * SCALE
   canvas.height = 10
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return null
   ctx.scale(SCALE, SCALE)
-  ctx.textBaseline = "top"
 
-  // Measure drink name wrapping (text-2xl = 24px, font-medium)
+  let h = 24 // py-6 top padding
+
+  // Rating circle: size-14 = 56px
+  const ratingDiam = 56
+  h += ratingDiam + 12  // circle + mb-3
+
+  // Cafe name: text-xs = 12px, mb-3
+  h += 12 + 12
+
+  // Drink name: text-2xl = 24px, wrapping, mb-3
   ctx.font = "500 24px 'Space Mono', monospace"
-  const drinkWords = (data.drinkName?.trim() || "Beverage").split(/\s+/)
-  let drinkLine = "", drinkLines: string[] = []
-  for (const word of drinkWords) {
-    const test = drinkLine ? `${drinkLine} ${word}` : word
-    if (ctx.measureText(test).width > LW - LP * 2) { drinkLines.push(drinkLine); drinkLine = word }
-    else drinkLine = test
-  }
-  if (drinkLine) drinkLines.push(drinkLine)
+  const drinkLines = wrapText(ctx, data.drinkName?.trim() || "Beverage", LW - LP * 2)
+  h += drinkLines.length * 28 + 12
 
-  // Measure customizations wrapping (text-sm = 14px, font-medium)
-  let customizationLines: string[] = []
+  // Customizations: text-sm = 14px, mb-3 (if any)
   if (customizations.length > 0) {
     ctx.font = "500 14px 'Space Mono', monospace"
-    const cWords = customizations.join(", ").split(/\s+/)
-    let cLine = ""
-    for (const word of cWords) {
-      const test = cLine ? `${cLine} ${word}` : word
-      if (ctx.measureText(test).width > LW - LP * 2) { customizationLines.push(cLine); cLine = word }
-      else cLine = test
-    }
-    if (cLine) customizationLines.push(cLine)
+    const custStr = customizations.join(", ")
+    const customizationLines = wrapText(ctx, custStr, LW - LP * 2)
+    h += customizationLines.length * 18 + 12
   }
 
-  // Measure notes wrapping (text-xs = 12px)
-  let noteLines: string[] = []
-  if (data.comments?.trim()) {
-    ctx.font = "300 12px 'Space Mono', monospace"
-    const nWords = `Notes: ${data.comments.trim()}`.split(/\s+/)
-    let nLine = ""
-    for (const word of nWords) {
-      const test = nLine ? `${nLine} ${word}` : word
-      if (ctx.measureText(test).width > LW - LP * 2) { noteLines.push(nLine); nLine = word }
-      else nLine = test
-    }
-    if (nLine) noteLines.push(nLine)
-  }
-
-  // Build height from top — mirror ReceiptContent exactly
-  // py-6 = 24px top padding
-  let h = 24
-  h += ratingDiam + 12   // rating circle + mb-3
-  h += 12 + 12           // cafe text-xs + mb-3
-  h += drinkLines.length * 28 + 12  // drink name lines (24px + ~4px leading) + mb-3
-  if (customizations.length > 0) h += customizationLines.length * 18 + 12  // lines (14px + ~4px leading) + mb-3
+  // Drink sticker (if any): max 140px tall, mb-3 (12px bottom)
   if (stickerImg) {
     const maxW = LW - LP * 2, maxH = 140
     const s = Math.min(maxW / stickerImg.width, maxH / stickerImg.height)
-    h += stickerImg.height * s + 4  // sticker + my-1 bottom
+    h += stickerImg.height * s + 12
   }
-  if (data.comments?.trim()) h += noteLines.length * 16 + 12  // notes + mb-3
-  if (data.location?.trim()) h += 12 + 4                      // location + small gap
-  h += 12 + 12   // date/time text + mb-3
-  h += 1 + 12    // divider border + mb-3
-  h += 12        // footer text-xs
-  h += 24        // py-6 bottom padding
 
-  // ── Set final canvas size and redraw ──────────────────────────────────────
-  // Canvas is LW + 2*SM wide and h + 2*SM tall — the SM margin gives the receipt breathing room.
-  canvas.width = (LW + SM * 2) * SCALE
-  canvas.height = (h + SM * 2) * SCALE
+  // Notes: text-xs = 12px, mb-3 (if any)
+  if (data.comments?.trim()) {
+    ctx.font = "300 12px 'Space Mono', monospace"
+    const noteLines = wrapText(ctx, `Notes: ${data.comments.trim()}`, LW - LP * 2)
+    h += noteLines.length * 16 + 12
+  }
+
+  // Location: text-xs = 12px, no mb (if any)
+  if (data.location?.trim()) {
+    h += 12 + 4
+  }
+
+  // Date/Time: text-xs = 12px, mb-3
+  h += 12 + 12
+
+  // Divider: 1px + mb-3
+  h += 1 + 12
+
+  // Footer: text-xs = 12px
+  h += 12
+
+  // Bottom padding: py-6
+  h += 24
+
+  // ── Set real canvas height and redraw ────────────────────────────────────
+  const ratingR = ratingDiam / 2  // 28
+  canvas.height = h * SCALE
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.scale(SCALE, SCALE)
-  ctx.textBaseline = "top"
 
-  // Fill receipt background
-  ctx.fillStyle = RECEIPT_BG
-  roundRect(ctx, SM, SM, LW, h, RECEIPT_RADIUS)
+  // Background
+  ctx.fillStyle = "#FEFCF4"
+  roundRect(ctx, SM, 0, LW, h, RECEIPT_RADIUS)
   ctx.fill()
 
-  let y = SM + 24  // SM outer margin + py-6 top padding
-  const cx = SM + LW / 2  // horizontal center shifted by SM
+  ctx.fillStyle = TEXT_COLOR
+  ctx.textBaseline = "top"
+  const cx = SM + LW / 2
 
-  // ── Rating circle ─────────────────────────────────────────────────────────
-  ctx.beginPath()
-  ctx.arc(cx, y + ratingR, ratingR, 0, Math.PI * 2)
+  let y = 24  // py-6
+
+  // ── Rating circle ────────────────────────────────────────────────────────
   ctx.strokeStyle = TEXT_COLOR
   ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(cx, y + ratingR, ratingR - 1, 0, Math.PI * 2)
   ctx.stroke()
-  // Center the rating text inside the circle using actual glyph metrics for true visual centering.
-  // With textBaseline="alphabetic", fillText draws so the baseline lands at the given y.
-  // Circle center is at (cx, y + ratingR).
-  // We want: baseline = circleCenterY + ascent - totalGlyphHeight/2
-  //        = circleCenterY + ascent - (ascent + descent)/2
-  //        = circleCenterY + (ascent - descent) / 2
-  ctx.fillStyle = TEXT_COLOR
   ctx.font = "400 18px 'Space Mono', monospace"
   ctx.textAlign = "center"
   ctx.textBaseline = "alphabetic"
@@ -1643,23 +1933,26 @@ async function generateReceiptCanvas(
   if (customizations.length > 0) {
     ctx.font = "500 14px 'Space Mono', monospace"
     ctx.textAlign = "center"
+    const custStr = customizations.join(", ")
+    const customizationLines = wrapText(ctx, custStr, LW - LP * 2)
     for (const l of customizationLines) { ctx.fillText(l, cx, y); y += 18 }
     y += 12  // mb-3
   }
 
-  // ── Drink sticker (my-1) ──────────────────────────────────────────────────
+  // ── Drink sticker (mb-3) ──────────────────────────────────────────────────
   if (stickerImg) {
     const maxW = LW - LP * 2, maxH = 140
     const s = Math.min(maxW / stickerImg.width, maxH / stickerImg.height)
     const sw = stickerImg.width * s, sh = stickerImg.height * s
     ctx.drawImage(stickerImg, SM + (LW - sw) / 2, y, sw, sh)
-    y += sh + 4  // sticker + my-1 bottom
+    y += sh + 12  // sticker + mb-3
   }
 
   // ── Notes (text-xs, font-light, mb-3, left-aligned) ──────────────────────
   if (data.comments?.trim()) {
     ctx.font = "300 12px 'Space Mono', monospace"
     ctx.textAlign = "left"
+    const noteLines = wrapText(ctx, `Notes: ${data.comments.trim()}`, LW - LP * 2)
     for (const l of noteLines) { ctx.fillText(l, SM + LP, y); y += 16 }
     y += 12  // mb-3
   }
