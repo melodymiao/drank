@@ -56,37 +56,6 @@ interface PlacedSticker {
 }
 
 /* ============================================================
-   Snap Guidelines
-   ============================================================ */
-
-interface SnapLine {
-  axis: "h" | "v"   // horizontal = constant Y, vertical = constant X
-  position: number   // percentage 0-100
-}
-
-const SNAP_THRESHOLD = 3 // percent — ~6-8px on a 220px canvas
-
-/** Given a candidate position and a list of snap targets (all in %), return
- *  the snapped value and any active guideline, or null if no snap. */
-function applySnap(
-  value: number,
-  targets: number[],
-): { snapped: number; guideline: number | null } {
-  let best: number | null = null
-  let bestDist = SNAP_THRESHOLD
-  for (const t of targets) {
-    const d = Math.abs(value - t)
-    if (d < bestDist) {
-      best = t
-      bestDist = d
-    }
-  }
-  return best !== null
-    ? { snapped: best, guideline: best }
-    : { snapped: value, guideline: null }
-}
-
-/* ============================================================
    Main Component
    ============================================================ */
 
@@ -112,66 +81,6 @@ interface SelectionRect {
 const RECEIPT_BG = "rgba(254,252,244,0.9)"
 const RECEIPT_RADIUS = 2
 const TEXT_COLOR = "#473C23"
-
-/** Scan an ImageData for the bounding box of the drink's dense pixel region.
- *
- *  Strategy: build a per-column and per-row histogram of opaque pixels (alpha > 30).
- *  Then find the outermost column/row whose density exceeds a threshold — this ignores
- *  stray halo pixels that bg-removal leaves far from the actual drink.
- *
- *  Threshold: a column/row must contain at least 0.5% of its length in opaque pixels
- *  to count as "part of the drink". Single stray pixels never qualify.
- *
- *  The X axis is symmetrised around the drink's visual center so the cropped PNG
- *  centers the drink when flex-centered in the receipt.
- */
-function getTightBoundingBox(imageData: ImageData): { x: number; y: number; w: number; h: number } | null {
-  const { data, width, height } = imageData
-
-  // Build histograms
-  const colCount = new Int32Array(width)   // opaque pixels per column
-  const rowCount = new Int32Array(height)  // opaque pixels per row
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (data[(y * width + x) * 4 + 3] > 30) {
-        colCount[x]++
-        rowCount[y]++
-      }
-    }
-  }
-
-  // A column qualifies if it has > 0.5% of the image height in opaque pixels
-  const colThreshold = Math.max(2, height * 0.005)
-  // A row qualifies if it has > 0.5% of the image width in opaque pixels
-  const rowThreshold = Math.max(2, width * 0.005)
-
-  let minX = -1, maxX = -1, minY = -1, maxY = -1
-
-  for (let x = 0; x < width; x++) {
-    if (colCount[x] >= colThreshold) { if (minX === -1) minX = x; maxX = x }
-  }
-  for (let y = 0; y < height; y++) {
-    if (rowCount[y] >= rowThreshold) { if (minY === -1) minY = y; maxY = y }
-  }
-
-  if (minX === -1 || minY === -1) return null
-
-  // Tight crop — no symmetry padding. The img is flex-centered in the receipt,
-  // so the PNG just needs to contain exactly the drink pixels.
-  const symMinX = minX
-  const symMaxX = maxX
-
-  const result = { x: symMinX, y: minY, w: symMaxX - symMinX + 1, h: maxY - minY + 1 }
-  console.log(
-    `[drank] tight-crop: ${width}×${height} →`,
-    `raw bbox x${minX}–${maxX} y${minY}–${maxY}`,
-    `sym bbox x${symMinX}–${symMaxX}`,
-    `→ ${result.w}×${result.h}`,
-    `(margins L:${symMinX} R:${width-symMaxX-1} T:${minY} B:${height-maxY-1})`
-  )
-  return result
-}
 
 export function ShareStep({
   data,
@@ -350,93 +259,13 @@ export function ShareStep({
 
       const result = await removeBackground(croppedBlob)
 
-
-      // ── Tight-crop: trim transparent pixels from the bg-removed result ──────
-      // Use createImageBitmap directly on the Blob — never taints the canvas,
-      // no FileReader→Image round-trip needed, guaranteed readable pixel data.
-      let bitmap: ImageBitmap
-      try {
-        bitmap = await createImageBitmap(result)
-      } catch (bitmapErr) {
-        console.warn("[drank] createImageBitmap failed, falling back to FileReader:", bitmapErr)
-        const fallbackUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.onerror = () => reject(new Error("FileReader failed"))
-          reader.readAsDataURL(result)
-        })
-        setBgRemovedImage(fallbackUrl)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setBgRemovedImage(reader.result as string)
         setShowDrinkSticker(true)
         setIsBgProcessing(false)
-        return
       }
-
-      console.log(`[drank] bg-removed bitmap: ${bitmap.width}×${bitmap.height}`)
-
-      const scanCanvas = document.createElement("canvas")
-      scanCanvas.width = bitmap.width
-      scanCanvas.height = bitmap.height
-      const scanCtx = scanCanvas.getContext("2d", { willReadFrequently: true })
-
-      if (!scanCtx || bitmap.width === 0 || bitmap.height === 0) {
-        console.warn("[drank] scanCtx unavailable or zero-size bitmap")
-        // Fallback: convert blob to data URL and use without cropping
-        const fallbackUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.onerror = () => reject(new Error("FileReader failed"))
-          reader.readAsDataURL(result)
-        })
-        setBgRemovedImage(fallbackUrl)
-        setShowDrinkSticker(true)
-        setIsBgProcessing(false)
-        return
-      }
-
-      scanCtx.drawImage(bitmap, 0, 0)
-      bitmap.close()
-
-      let imageData: ImageData
-      try {
-        imageData = scanCtx.getImageData(0, 0, scanCanvas.width, scanCanvas.height)
-      } catch (readErr) {
-        console.warn("[drank] getImageData failed (canvas tainted?):", readErr)
-        setBgRemovedImage(scanCanvas.toDataURL("image/png"))
-        setShowDrinkSticker(true)
-        setIsBgProcessing(false)
-        return
-      }
-
-      const bbox = getTightBoundingBox(imageData)
-
-      if (!bbox) {
-        console.warn("[drank] no visible pixels found in bg-removed image")
-        // No visible pixels at all — fall back to full image
-        const fallbackUrl = scanCanvas.toDataURL("image/png")
-        setBgRemovedImage(fallbackUrl)
-        setShowDrinkSticker(true)
-        setIsBgProcessing(false)
-        return
-      }
-
-      // Crop scanCanvas to the tight bounding box
-      const tightCanvas = document.createElement("canvas")
-      tightCanvas.width = bbox.w
-      tightCanvas.height = bbox.h
-      const tightCtx = tightCanvas.getContext("2d")
-      if (!tightCtx) {
-        setBgRemovedImage(scanCanvas.toDataURL("image/png"))
-        setShowDrinkSticker(true)
-        setIsBgProcessing(false)
-        return
-      }
-      tightCtx.drawImage(scanCanvas, bbox.x, bbox.y, bbox.w, bbox.h, 0, 0, bbox.w, bbox.h)
-      const tightUrl = tightCanvas.toDataURL("image/png")
-      console.log(`[drank] tight-crop complete: storing ${bbox.w}×${bbox.h} PNG`)
-
-      setBgRemovedImage(tightUrl)
-      setShowDrinkSticker(true)
-      setIsBgProcessing(false)
+      reader.readAsDataURL(result)
     } catch (error) {
       console.error("Background removal failed:", error)
       setBgError(pickError(ERRORS.bgRemovalFailed))
@@ -895,10 +724,6 @@ function InteractiveCanvas({
   storyReceiptUrl?: string | null
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const receiptRef = useRef<HTMLDivElement>(null)
-
-  // Active snap guidelines — set while a sticker is being dragged
-  const [snapLines, setSnapLines] = useState<SnapLine[]>([])
 
   const customizations: string[] = []
   if (data.iceTemp) customizations.push(toTitleCase(data.iceTemp))
@@ -923,71 +748,15 @@ function InteractiveCanvas({
     return `${h12}:${minutes} ${ampm}`
   }
 
-  const handleContainerClick = () => {
+  const handleContainerClick = (e: React.MouseEvent) => {
     onCanvasClick()
   }
-
-  /** Called by DraggableSticker while dragging — compute snap targets and apply. */
-  const handleStickerDrag = useCallback((
-    id: string,
-    rawX: number,
-    rawY: number,
-  ): { x: number; y: number } => {
-    const container = containerRef.current
-    if (!container) return { x: rawX, y: rawY }
-
-    // ── Build snap targets ──────────────────────────────────────────────────
-    const xTargets: number[] = [50] // canvas horizontal center
-    const yTargets: number[] = [50] // canvas vertical center
-
-    // Other stickers' centers
-    for (const s of placedStickers) {
-      if (s.id !== id) {
-        xTargets.push(s.x)
-        yTargets.push(s.y)
-      }
-    }
-
-    // Receipt card bounds (story mode only — the receipt floats inside the story canvas)
-    if (mode === "story" && receiptRef.current && container) {
-      const cRect = container.getBoundingClientRect()
-      const rRect = receiptRef.current.getBoundingClientRect()
-      // Convert receipt rect to container-% coordinates
-      const rLeft   = ((rRect.left   - cRect.left)  / cRect.width)  * 100
-      const rRight  = ((rRect.right  - cRect.left)  / cRect.width)  * 100
-      const rTop    = ((rRect.top    - cRect.top)   / cRect.height) * 100
-      const rBottom = ((rRect.bottom - cRect.top)   / cRect.height) * 100
-      const rCenterX = (rLeft + rRight) / 2
-      const rCenterY = (rTop + rBottom) / 2
-      xTargets.push(rLeft, rRight, rCenterX)
-      yTargets.push(rTop, rBottom, rCenterY)
-    }
-
-    // ── Apply snap ──────────────────────────────────────────────────────────
-    const snapX = applySnap(rawX, xTargets)
-    const snapY = applySnap(rawY, yTargets)
-
-    // Build active guideline list
-    const newLines: SnapLine[] = []
-    if (snapX.guideline !== null) newLines.push({ axis: "v", position: snapX.guideline })
-    if (snapY.guideline !== null) newLines.push({ axis: "h", position: snapY.guideline })
-    setSnapLines(newLines)
-
-    return { x: snapX.snapped, y: snapY.snapped }
-  }, [placedStickers, mode])
-
-  const handleStickerDragEnd = useCallback(() => {
-    setSnapLines([])
-  }, [])
 
   if (mode === "story" && backgroundImage) {
     // Story mode: 9:16 aspect ratio, constrained so download button is never pushed off screen
     return (
       <div
-        ref={(el) => {
-          (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
-          if (storyPreviewRef) (storyPreviewRef as React.MutableRefObject<HTMLDivElement | null>).current = el
-        }}
+        ref={(el) => { (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el; if (storyPreviewRef) (storyPreviewRef as React.MutableRefObject<HTMLDivElement | null>).current = el }}
         onClick={handleContainerClick}
         className="relative mx-auto overflow-hidden"
         style={{
@@ -1004,46 +773,16 @@ function InteractiveCanvas({
           style={{ filter: "brightness(0.9)" }}
         />
 
-        {/* Receipt overlay — screenshot of the real receipt, scaled to fit */}
+        {/* Receipt overlay — screenshot of the real receipt, scaled to fit, 90% opacity */}
         {storyReceiptUrl && (
           <img
-            ref={receiptRef as React.RefObject<HTMLImageElement>}
             src={storyReceiptUrl}
             alt="receipt"
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ width: "70%", display: "block", borderRadius: 4 }}
+            style={{ width: "70%", display: "block", borderRadius: 4, opacity: 0.9 }}
             draggable={false}
           />
         )}
-
-        {/* Snap guidelines */}
-        {snapLines.map((line, i) => (
-          <div
-            key={i}
-            className="pointer-events-none absolute"
-            style={
-              line.axis === "h"
-                ? {
-                    top: `${line.position}%`,
-                    left: 0,
-                    right: 0,
-                    height: 1,
-                    backgroundColor: "#CB446A",
-                    opacity: 0.8,
-                    zIndex: 50,
-                  }
-                : {
-                    left: `${line.position}%`,
-                    top: 0,
-                    bottom: 0,
-                    width: 1,
-                    backgroundColor: "#CB446A",
-                    opacity: 0.8,
-                    zIndex: 50,
-                  }
-            }
-          />
-        ))}
 
         {/* Placed stickers */}
         {placedStickers.map((sticker) => (
@@ -1055,8 +794,6 @@ function InteractiveCanvas({
             onUpdate={(updates) => onUpdateSticker(sticker.id, updates)}
             onDelete={() => onDeleteSticker(sticker.id)}
             containerRef={containerRef}
-            onDrag={handleStickerDrag}
-            onDragEnd={handleStickerDragEnd}
           />
         ))}
       </div>
@@ -1081,35 +818,6 @@ function InteractiveCanvas({
           formatTime={formatTimeLocal}
         />
 
-        {/* Snap guidelines — clipped to receipt */}
-        {snapLines.map((line, i) => (
-          <div
-            key={i}
-            className="pointer-events-none absolute"
-            style={
-              line.axis === "h"
-                ? {
-                    top: `${line.position}%`,
-                    left: 0,
-                    right: 0,
-                    height: 1,
-                    backgroundColor: "#CB446A",
-                    opacity: 0.8,
-                    zIndex: 50,
-                  }
-                : {
-                    left: `${line.position}%`,
-                    top: 0,
-                    bottom: 0,
-                    width: 1,
-                    backgroundColor: "#CB446A",
-                    opacity: 0.8,
-                    zIndex: 50,
-                  }
-            }
-          />
-        ))}
-
         {/* Placed stickers — inside receipt div so they are bounded to it */}
         {placedStickers.map((sticker) => (
           <DraggableSticker
@@ -1120,8 +828,6 @@ function InteractiveCanvas({
             onUpdate={(updates) => onUpdateSticker(sticker.id, updates)}
             onDelete={() => onDeleteSticker(sticker.id)}
             containerRef={containerRef}
-            onDrag={handleStickerDrag}
-            onDragEnd={handleStickerDragEnd}
           />
         ))}
       </div>
@@ -1204,12 +910,11 @@ function ReceiptContent({
           </div>
         </div>
       ) : stickerImage ? (
-        <div className={cn("mb-3 flex justify-center", small ? "max-h-[80px]" : "max-h-[140px]")}>
+        <div className="mb-1 flex justify-center">
           <img
             src={stickerImage}
             alt="Drink sticker"
-            className={cn("block h-auto w-auto", small ? "max-h-[80px] max-w-[110px]" : "max-h-[140px] max-w-full")}
-            style={{ display: "block" }}
+            className={cn("object-contain", small ? "max-h-[80px] max-w-[110px]" : "max-h-[140px] max-w-full")}
           />
         </div>
       ) : null}
@@ -1255,8 +960,6 @@ function DraggableSticker({
   onUpdate,
   onDelete,
   containerRef,
-  onDrag,
-  onDragEnd,
 }: {
   sticker: PlacedSticker
   isSelected: boolean
@@ -1264,10 +967,6 @@ function DraggableSticker({
   onUpdate: (updates: Partial<PlacedSticker>) => void
   onDelete: () => void
   containerRef: React.RefObject<HTMLDivElement | null>
-  /** Called during drag — returns snapped {x, y} and fires guideline updates */
-  onDrag: (id: string, rawX: number, rawY: number) => { x: number; y: number }
-  /** Called when drag ends — clears guidelines */
-  onDragEnd: () => void
 }) {
   const stickerRef = useRef<HTMLDivElement>(null)
 
@@ -1298,6 +997,12 @@ function DraggableSticker({
     startRotation: number
   } | null>(null)
 
+  // Pinch-to-zoom state
+  const pinchStartRef = useRef<{
+    startDist: number
+    startScale: number
+  } | null>(null)
+
   const getContainerBounds = () => containerRef.current?.getBoundingClientRect() ?? null
 
   const getClient = (e: MouseEvent | TouchEvent) => {
@@ -1306,11 +1011,19 @@ function DraggableSticker({
     return { x: 0, y: 0 }
   }
 
-  // ── Drag ──────────────────────────────────────────────────────────────────
+  // ── Drag (with pinch-to-zoom on two-finger touch) ─────────────────────────
 
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation()
     onSelect()
+    // Two-finger touch → start pinch, not drag
+    if ("touches" in e && e.touches.length === 2) {
+      const dx = e.touches[1].clientX - e.touches[0].clientX
+      const dy = e.touches[1].clientY - e.touches[0].clientY
+      pinchStartRef.current = { startDist: Math.hypot(dx, dy), startScale: sticker.scale }
+      dragStartRef.current = null
+      return
+    }
     const client = "touches" in e
       ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
       : { x: (e as React.MouseEvent).clientX, y: (e as React.MouseEvent).clientY }
@@ -1319,22 +1032,30 @@ function DraggableSticker({
 
   useEffect(() => {
     const handleMove = (e: MouseEvent | TouchEvent) => {
+      // Pinch move (two fingers on the sticker body)
+      if ("touches" in e && e.touches.length === 2 && pinchStartRef.current) {
+        const dx = e.touches[1].clientX - e.touches[0].clientX
+        const dy = e.touches[1].clientY - e.touches[0].clientY
+        const dist = Math.hypot(dx, dy)
+        if (pinchStartRef.current.startDist < 1) return
+        const newScale = Math.max(0.3, Math.min(4, pinchStartRef.current.startScale * (dist / pinchStartRef.current.startDist)))
+        onUpdate({ scale: newScale })
+        return
+      }
       if (!dragStartRef.current) return
       const bounds = getContainerBounds()
       if (!bounds) return
       const { x, y } = getClient(e)
       const dx = ((x - dragStartRef.current.clientX) / bounds.width) * 100
       const dy = ((y - dragStartRef.current.clientY) / bounds.height) * 100
-      const rawX = Math.max(0, Math.min(100, dragStartRef.current.startX + dx))
-      const rawY = Math.max(0, Math.min(100, dragStartRef.current.startY + dy))
-      const snapped = onDrag(sticker.id, rawX, rawY)
-      onUpdate({ x: snapped.x, y: snapped.y })
+      onUpdate({
+        x: Math.max(0, Math.min(100, dragStartRef.current.startX + dx)),
+        y: Math.max(0, Math.min(100, dragStartRef.current.startY + dy)),
+      })
     }
-    const handleUp = () => {
-      if (dragStartRef.current) {
-        onDragEnd()
-        dragStartRef.current = null
-      }
+    const handleUp = (e: MouseEvent | TouchEvent) => {
+      if ("touches" in e && e.touches.length < 2) pinchStartRef.current = null
+      dragStartRef.current = null
     }
     document.addEventListener("mousemove", handleMove)
     document.addEventListener("mouseup", handleUp)
@@ -1346,7 +1067,7 @@ function DraggableSticker({
       document.removeEventListener("touchmove", handleMove)
       document.removeEventListener("touchend", handleUp)
     }
-  }, [sticker.x, sticker.y, sticker.id, onDrag, onDragEnd])
+  }, [sticker.x, sticker.y, sticker.scale])
 
   // ── Resize ────────────────────────────────────────────────────────────────
 
@@ -1658,18 +1379,14 @@ function ForegroundSelectionModal({
           y = Math.min(y2 - MIN_SIZE, Math.max(0, r.y + dy))
           width = Math.max(MIN_SIZE, Math.min(100 - r.x, r.width + dx))
           height = y2 - y
-          x2 = r.x + width
         } else if (dragModeRef.current === "sw") {
           x = Math.min(x2 - MIN_SIZE, Math.max(0, r.x + dx))
-          height = Math.max(MIN_SIZE, Math.min(100 - r.y, r.height + dy))
           width = x2 - x
-          y2 = r.y + height
+          height = Math.max(MIN_SIZE, Math.min(100 - r.y, r.height + dy))
         } else if (dragModeRef.current === "se") {
           width = Math.max(MIN_SIZE, Math.min(100 - r.x, r.width + dx))
           height = Math.max(MIN_SIZE, Math.min(100 - r.y, r.height + dy))
         }
-        if (x + width > 100) width = 100 - x
-        if (y + height > 100) height = 100 - y
       }
 
       setRect({ x, y, width, height })
@@ -1680,7 +1397,7 @@ function ForegroundSelectionModal({
       dragStartRef.current = null
     }
 
-    document.addEventListener("mousemove", handleMove, { passive: false })
+    document.addEventListener("mousemove", handleMove)
     document.addEventListener("mouseup", handleUp)
     document.addEventListener("touchmove", handleMove, { passive: false })
     document.addEventListener("touchend", handleUp)
@@ -1692,84 +1409,124 @@ function ForegroundSelectionModal({
     }
   }, [])
 
-  const handleConfirm = useCallback(() => {
-    const bounds = containerRef.current?.getBoundingClientRect()
+  const handleConfirm = () => {
+    if (!containerRef.current) return
+    const bounds = containerRef.current.getBoundingClientRect()
     onConfirm({
       ...rect,
-      containerWidth: bounds?.width,
-      containerHeight: bounds?.height,
+      containerWidth: bounds.width,
+      containerHeight: bounds.height,
     })
-  }, [rect, onConfirm])
-
-  const handleStyle: React.CSSProperties = {
-    position: "absolute",
-    width: 20,
-    height: 20,
-    borderRadius: "50%",
-    backgroundColor: "#CB446A",
-    zIndex: 10,
-    touchAction: "none",
   }
+
+  const HANDLE_SIZE = 16
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 rounded-xl bg-card p-4">
-        <div className="text-center">
-          <h3 className="font-mono text-lg font-medium text-foreground">Select Your Drink</h3>
-          <p className="font-sans text-sm text-muted-foreground">Drag the box and resize the corners around your drink</p>
-        </div>
+      <div className="flex w-full max-w-sm flex-col gap-4">
+        <p className="text-center font-mono text-sm text-white">
+          drag the box around your drink
+        </p>
 
+        {/* Image container */}
         <div
           ref={containerRef}
-          className="relative overflow-hidden rounded-lg bg-black select-none"
-          style={{ maxHeight: "60vh", touchAction: "none" }}
+          className="relative mx-auto w-full overflow-hidden rounded-lg"
+          style={{ maxHeight: "60vh", aspectRatio: "auto" }}
         >
           <img
             src={image}
-            alt="Select area"
-            className="block w-full h-full object-contain"
-            style={{ maxHeight: "60vh", userSelect: "none", WebkitUserSelect: "none", pointerEvents: "none" }}
+            alt="Select foreground"
+            className="h-full w-full object-contain"
             draggable={false}
           />
 
+          {/* Dark overlay outside the selection box */}
+          <div className="pointer-events-none absolute inset-0">
+            {/* Top strip */}
+            <div
+              className="absolute left-0 right-0 top-0 bg-black/50"
+              style={{ height: `${rect.y}%` }}
+            />
+            {/* Bottom strip */}
+            <div
+              className="absolute bottom-0 left-0 right-0 bg-black/50"
+              style={{ top: `${rect.y + rect.height}%` }}
+            />
+            {/* Left strip */}
+            <div
+              className="absolute bg-black/50"
+              style={{
+                top: `${rect.y}%`,
+                left: 0,
+                width: `${rect.x}%`,
+                height: `${rect.height}%`,
+              }}
+            />
+            {/* Right strip */}
+            <div
+              className="absolute bg-black/50"
+              style={{
+                top: `${rect.y}%`,
+                left: `${rect.x + rect.width}%`,
+                right: 0,
+                height: `${rect.height}%`,
+              }}
+            />
+          </div>
+
+          {/* Selection box border */}
           <div
-            className="absolute border-2 border-pink-dark bg-pink/20"
+            className="absolute border-2 border-white"
             style={{
               left: `${rect.x}%`,
               top: `${rect.y}%`,
               width: `${rect.width}%`,
               height: `${rect.height}%`,
-              cursor: "move",
-              touchAction: "none",
-              boxSizing: "border-box",
             }}
-            onMouseDown={(e) => startDrag("move", e)}
-            onTouchStart={(e) => startDrag("move", e)}
           >
-            {(["nw","ne","sw","se"] as const).map((corner) => (
+            {/* Move handle (interior) */}
+            <div
+              className="absolute inset-0 cursor-move"
+              onMouseDown={(e) => startDrag("move", e)}
+              onTouchStart={(e) => startDrag("move", e)}
+            />
+
+            {/* Corner handles */}
+            {(["nw", "ne", "sw", "se"] as const).map((corner) => (
               <div
                 key={corner}
-                style={{
-                  ...handleStyle,
-                  top: corner.startsWith("n") ? -10 : undefined,
-                  bottom: corner.startsWith("s") ? -10 : undefined,
-                  left: corner.endsWith("w") ? -10 : undefined,
-                  right: corner.endsWith("e") ? -10 : undefined,
-                  cursor: corner === "nw" || corner === "se" ? "nwse-resize" : "nesw-resize",
-                }}
                 onMouseDown={(e) => startDrag(corner, e)}
                 onTouchStart={(e) => startDrag(corner, e)}
+                className="absolute rounded-sm bg-white"
+                style={{
+                  width: HANDLE_SIZE,
+                  height: HANDLE_SIZE,
+                  ...(corner === "nw" ? { top: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: "nw-resize" } : {}),
+                  ...(corner === "ne" ? { top: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: "ne-resize" } : {}),
+                  ...(corner === "sw" ? { bottom: -HANDLE_SIZE / 2, left: -HANDLE_SIZE / 2, cursor: "sw-resize" } : {}),
+                  ...(corner === "se" ? { bottom: -HANDLE_SIZE / 2, right: -HANDLE_SIZE / 2, cursor: "se-resize" } : {}),
+                  touchAction: "none",
+                  zIndex: 10,
+                }}
               />
             ))}
           </div>
         </div>
 
         <div className="flex gap-3">
-          <Button variant="outline" className="flex-1" onClick={onCancel}>
+          <Button
+            variant="outline"
+            className="flex-1 font-mono text-sm"
+            onClick={onCancel}
+          >
             Cancel
           </Button>
-          <Button className="flex-1 bg-brown text-white hover:bg-brown/90" onClick={handleConfirm}>
-            Confirm Selection
+          <Button
+            className="flex-1 bg-brown font-mono text-sm text-white hover:bg-brown/90"
+            onClick={handleConfirm}
+          >
+            Confirm
           </Button>
         </div>
       </div>
@@ -1778,7 +1535,7 @@ function ForegroundSelectionModal({
 }
 
 /* ============================================================
-   Canvas Generation Functions
+   Canvas Export Functions
    ============================================================ */
 
 async function generateReceiptCanvas(
@@ -1789,19 +1546,39 @@ async function generateReceiptCanvas(
 ): Promise<string | null> {
   if (!canvas) return null
 
-  // Render at 2x for sharpness. All coords are logical (1x) pixels.
-  const SCALE = 2
-  const LW = 280   // logical width
-  const LP = 20    // logical side padding (px-5)
-  const SM = 0     // left margin inside canvas (no extra margin)
+  const SCALE = 2       // render at 2× for sharpness
+  const LW = 280        // logical width — matches w-[280px]
+  const LP = 20         // logical side padding — matches px-5
+  const SM = 0          // no side margin on receipt canvas
 
-  // ── Helper: wrap text ────────────────────────────────────────────────────
-  function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  canvas.width = (LW + SM * 2) * SCALE
+
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return null
+
+  ctx.scale(SCALE, SCALE)
+
+  // ── Pre-load font ─────────────────────────────────────────────────────────
+  try { await document.fonts.load("500 14px 'Space Mono'") } catch {}
+
+  // ── Build customizations list (mirrors InteractiveCanvas logic) ───────────
+  const toTitleCaseLocal = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : ""
+  const customizations: string[] = []
+  if (data.iceTemp) customizations.push(toTitleCaseLocal(data.iceTemp))
+  if (data.iceLevel) customizations.push(`${toTitleCaseLocal(data.iceLevel)} Ice`)
+  if (data.sugarLevel) customizations.push(`${toTitleCaseLocal(data.sugarLevel)} Sugar`)
+  const milkDisplay = data.milk === "other" && data.otherMilk ? data.otherMilk : data.milk
+  if (milkDisplay) customizations.push(`${toTitleCaseLocal(milkDisplay)} Milk`)
+  if (data.toppings?.length > 0) customizations.push(...data.toppings.map(toTitleCaseLocal))
+  if (data.otherCustomizations) customizations.push(toTitleCaseLocal(data.otherCustomizations))
+
+  // ── Text wrapping helper ──────────────────────────────────────────────────
+  const wrapText = (text: string, maxWidth: number): string[] => {
     const words = text.split(" ")
     const lines: string[] = []
     let line = ""
     for (const word of words) {
-      const test = line ? line + " " + word : word
+      const test = line ? `${line} ${word}` : word
       if (ctx.measureText(test).width > maxWidth && line) {
         lines.push(line)
         line = word
@@ -1810,102 +1587,105 @@ async function generateReceiptCanvas(
       }
     }
     if (line) lines.push(line)
-    return lines.length ? lines : [""]
+    return lines
   }
 
-  // ── Build customizations string ─────────────────────────────────────────
-  function toTitleCase(s: string) { return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : "" }
-  const customizations: string[] = []
-  if (data.iceTemp) customizations.push(toTitleCase(data.iceTemp))
-  if (data.iceLevel) customizations.push(`${toTitleCase(data.iceLevel)} Ice`)
-  if (data.sugarLevel) customizations.push(`${toTitleCase(data.sugarLevel)} Sugar`)
-  const milkDisplay = data.milk === "other" && data.otherMilk ? data.otherMilk : data.milk
-  if (milkDisplay) customizations.push(`${toTitleCase(milkDisplay)} Milk`)
-  if (data.toppings.length > 0) customizations.push(...data.toppings.map(toTitleCase))
-  if (data.otherCustomizations) customizations.push(toTitleCase(data.otherCustomizations))
-
-  // ── Pass 1: measure total height ─────────────────────────────────────────
-  canvas.width = (LW + SM * 2) * SCALE
-  canvas.height = 10
-  const ctx = canvas.getContext("2d")
-  if (!ctx) return null
+  // ── Pass 1: Measure height ────────────────────────────────────────────────
+  canvas.height = 10 * SCALE
   ctx.scale(SCALE, SCALE)
 
-  let h = 24 // py-6 top padding
+  let h = 24  // py-6 top padding
 
-  // Rating circle: size-14 = 56px
-  const ratingDiam = 56
-  h += ratingDiam + 12  // circle + mb-3
+  // Rating circle
+  const ratingDiam = 56  // size-14
+  h += ratingDiam + 12   // circle + mb-3
 
-  // Cafe name: text-xs = 12px, mb-3
-  h += 12 + 12
+  // Cafe name
+  h += 12 + 12  // text-xs + mb-3
 
-  // Drink name: text-2xl = 24px, wrapping, mb-3
+  // Drink name (wrapping, text-2xl = 24px, line height ~28px)
   ctx.font = "500 24px 'Space Mono', monospace"
-  const drinkLines = wrapText(ctx, data.drinkName?.trim() || "Beverage", LW - LP * 2)
-  h += drinkLines.length * 28 + 12
+  const drinkLines = wrapText(data.drinkName?.trim() || "Beverage", LW - LP * 2)
+  h += drinkLines.length * 28 + 12  // lines + mb-3
 
-  // Customizations: text-sm = 14px, mb-3 (if any)
+  // Customizations
   if (customizations.length > 0) {
     ctx.font = "500 14px 'Space Mono', monospace"
-    const custStr = customizations.join(", ")
-    const customizationLines = wrapText(ctx, custStr, LW - LP * 2)
-    h += customizationLines.length * 18 + 12
+    const custText = customizations.join(", ")
+    const customizationLines = wrapText(custText, LW - LP * 2)
+    h += customizationLines.length * 18 + 12  // lines + mb-3
   }
 
-  // Drink sticker (if any): max 140px tall, mb-3 (12px bottom)
+  // Drink sticker
   if (stickerImg) {
     const maxW = LW - LP * 2, maxH = 140
     const s = Math.min(maxW / stickerImg.width, maxH / stickerImg.height)
-    h += stickerImg.height * s + 12
+    h += stickerImg.height * s + 4  // sticker height + my-1 bottom
   }
 
-  // Notes: text-xs = 12px, mb-3 (if any)
+  // Notes
   if (data.comments?.trim()) {
     ctx.font = "300 12px 'Space Mono', monospace"
-    const noteLines = wrapText(ctx, `Notes: ${data.comments.trim()}`, LW - LP * 2)
-    h += noteLines.length * 16 + 12
+    const noteLines = wrapText(`Notes: ${data.comments.trim()}`, LW - LP * 2)
+    h += noteLines.length * 16 + 12  // lines + mb-3
   }
 
-  // Location: text-xs = 12px, no mb (if any)
+  // Location
   if (data.location?.trim()) {
-    h += 12 + 4
+    h += 12 + 4  // text-xs + small gap
   }
 
-  // Date/Time: text-xs = 12px, mb-3
-  h += 12 + 12
+  // Date/time
+  h += 12 + 12  // text-xs + mb-3
 
-  // Divider: 1px + mb-3
-  h += 1 + 12
+  // Divider
+  h += 1 + 12  // border + mb-3
 
-  // Footer: text-xs = 12px
-  h += 12
+  // Footer
+  h += 12  // text-xs
 
-  // Bottom padding: py-6
-  h += 24
+  // Bottom padding
+  h += 24  // py-6 bottom
 
-  // ── Set real canvas height and redraw ────────────────────────────────────
-  const ratingR = ratingDiam / 2  // 28
-  canvas.height = h * SCALE
+  // ── Pass 2: Draw ──────────────────────────────────────────────────────────
+  canvas.width = (LW + SM * 2) * SCALE
+  canvas.height = (h + SM * 2) * SCALE
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.scale(SCALE, SCALE)
 
   // Background
   ctx.fillStyle = "#FEFCF4"
-  roundRect(ctx, SM, 0, LW, h, RECEIPT_RADIUS)
+  roundRect(ctx, SM, SM, LW, h, RECEIPT_RADIUS)
   ctx.fill()
+
+  const cx = SM + LW / 2
+  let y = SM + 24  // py-6
 
   ctx.fillStyle = TEXT_COLOR
   ctx.textBaseline = "top"
-  const cx = SM + LW / 2
 
-  let y = 24  // py-6
+  // Rebuild computed values for pass 2
+  ctx.font = "500 24px 'Space Mono', monospace"
+  const drinkLines2 = wrapText(data.drinkName?.trim() || "Beverage", LW - LP * 2)
 
-  // ── Rating circle ────────────────────────────────────────────────────────
+  let customizationLines2: string[] = []
+  if (customizations.length > 0) {
+    ctx.font = "500 14px 'Space Mono', monospace"
+    customizationLines2 = wrapText(customizations.join(", "), LW - LP * 2)
+  }
+
+  let noteLines2: string[] = []
+  if (data.comments?.trim()) {
+    ctx.font = "300 12px 'Space Mono', monospace"
+    noteLines2 = wrapText(`Notes: ${data.comments.trim()}`, LW - LP * 2)
+  }
+
+  // ── Rating circle ─────────────────────────────────────────────────────────
+  const ratingR = 28  // radius = size-14 / 2
   ctx.strokeStyle = TEXT_COLOR
   ctx.lineWidth = 2
   ctx.beginPath()
-  ctx.arc(cx, y + ratingR, ratingR - 1, 0, Math.PI * 2)
+  ctx.arc(cx, y + ratingR, ratingR, 0, Math.PI * 2)
   ctx.stroke()
   ctx.font = "400 18px 'Space Mono', monospace"
   ctx.textAlign = "center"
@@ -1926,34 +1706,31 @@ async function generateReceiptCanvas(
 
   // ── Drink name (text-2xl, font-medium, mb-3) ───────────────────────────────
   ctx.font = "500 24px 'Space Mono', monospace"
-  for (const l of drinkLines) { ctx.fillText(l, cx, y); y += 28 }
+  for (const l of drinkLines2) { ctx.fillText(l, cx, y); y += 28 }
   y += 12  // mb-3
 
   // ── Customizations (text-sm, font-medium, mb-3) ───────────────────────────
   if (customizations.length > 0) {
     ctx.font = "500 14px 'Space Mono', monospace"
     ctx.textAlign = "center"
-    const custStr = customizations.join(", ")
-    const customizationLines = wrapText(ctx, custStr, LW - LP * 2)
-    for (const l of customizationLines) { ctx.fillText(l, cx, y); y += 18 }
+    for (const l of customizationLines2) { ctx.fillText(l, cx, y); y += 18 }
     y += 12  // mb-3
   }
 
-  // ── Drink sticker (mb-3) ──────────────────────────────────────────────────
+  // ── Drink sticker (my-1) ──────────────────────────────────────────────────
   if (stickerImg) {
     const maxW = LW - LP * 2, maxH = 140
     const s = Math.min(maxW / stickerImg.width, maxH / stickerImg.height)
     const sw = stickerImg.width * s, sh = stickerImg.height * s
     ctx.drawImage(stickerImg, SM + (LW - sw) / 2, y, sw, sh)
-    y += sh + 12  // sticker + mb-3
+    y += sh + 4  // sticker + my-1 bottom
   }
 
   // ── Notes (text-xs, font-light, mb-3, left-aligned) ──────────────────────
   if (data.comments?.trim()) {
     ctx.font = "300 12px 'Space Mono', monospace"
     ctx.textAlign = "left"
-    const noteLines = wrapText(ctx, `Notes: ${data.comments.trim()}`, LW - LP * 2)
-    for (const l of noteLines) { ctx.fillText(l, SM + LP, y); y += 16 }
+    for (const l of noteLines2) { ctx.fillText(l, SM + LP, y); y += 16 }
     y += 12  // mb-3
   }
 
@@ -2066,12 +1843,14 @@ async function generateStoryCanvas(
   ctx.drawImage(bgImg, (W - bgW) / 2, (H - bgH) / 2, bgW, bgH)
   ctx.filter = "none"
 
-  // ── Receipt capture — composite centered at 70% of story width ────────────
+  // ── Receipt capture — composite centered at 70% of story width, 90% opacity ─
   const exportReceiptW = Math.round(W * 0.70)
   const exportReceiptH = Math.round(receiptCapture.height / receiptCapture.width * exportReceiptW)
   const rX = Math.round((W - exportReceiptW) / 2)
   const rY = Math.round((H - exportReceiptH) / 2)
+  ctx.globalAlpha = 0.9
   ctx.drawImage(receiptCapture, rX, rY, exportReceiptW, exportReceiptH)
+  ctx.globalAlpha = 1
 
   // ── Placed stickers ───────────────────────────────────────────────────────
   const previewW = storyPreviewEl?.getBoundingClientRect().width ?? 220
