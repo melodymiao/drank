@@ -1030,9 +1030,23 @@ function DraggableSticker({
     dragStartRef.current = { clientX: client.x, clientY: client.y, startX: sticker.x, startY: sticker.y }
   }
 
+  // Catch second finger arriving after drag has already started
+  useEffect(() => {
+    const handleSecondTouch = (e: TouchEvent) => {
+      if (e.touches.length === 2 && dragStartRef.current) {
+        dragStartRef.current = null
+        const dx = e.touches[1].clientX - e.touches[0].clientX
+        const dy = e.touches[1].clientY - e.touches[0].clientY
+        pinchStartRef.current = { startDist: Math.hypot(dx, dy), startScale: sticker.scale }
+      }
+    }
+    document.addEventListener("touchstart", handleSecondTouch)
+    return () => document.removeEventListener("touchstart", handleSecondTouch)
+  }, [sticker.scale])
+
   useEffect(() => {
     const handleMove = (e: MouseEvent | TouchEvent) => {
-      // Pinch move (two fingers on the sticker body)
+      // Pinch move (two fingers)
       if ("touches" in e && e.touches.length === 2 && pinchStartRef.current) {
         const dx = e.touches[1].clientX - e.touches[0].clientX
         const dy = e.touches[1].clientY - e.touches[0].clientY
@@ -1059,7 +1073,7 @@ function DraggableSticker({
     }
     document.addEventListener("mousemove", handleMove)
     document.addEventListener("mouseup", handleUp)
-    document.addEventListener("touchmove", handleMove, { passive: true })
+    document.addEventListener("touchmove", handleMove, { passive: false })
     document.addEventListener("touchend", handleUp)
     return () => {
       document.removeEventListener("mousemove", handleMove)
@@ -1215,6 +1229,7 @@ function DraggableSticker({
           <div
             className="absolute left-1/2 -translate-x-1/2"
             style={{ top: -(PILL_H / 2 + 28), display: "flex", flexDirection: "column", alignItems: "center", gap: 0 }}
+            onClick={(e) => e.stopPropagation()}
           >
             <div
               onMouseDown={handleRotateStart}
@@ -1423,8 +1438,8 @@ function ForegroundSelectionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-      <div className="flex w-full max-w-sm flex-col gap-4">
-        <p className="text-center font-mono text-sm text-white">
+      <div className="flex w-full max-w-sm flex-col gap-4 rounded-md p-4 shadow-xl" style={{ backgroundColor: "oklch(0.958 0.012 85)" }}>
+        <p className="text-center font-mono text-sm text-foreground">
           drag the box around your drink
         </p>
 
@@ -1432,7 +1447,7 @@ function ForegroundSelectionModal({
         <div
           ref={containerRef}
           className="relative mx-auto w-full overflow-hidden rounded-lg"
-          style={{ maxHeight: "60vh", aspectRatio: "auto" }}
+          style={{ maxHeight: "55vh", aspectRatio: "auto" }}
         >
           <img
             src={image}
@@ -1516,14 +1531,16 @@ function ForegroundSelectionModal({
 
         <div className="flex gap-3">
           <Button
-            variant="outline"
-            className="flex-1 font-mono text-sm"
+            size="lg"
+            className="flex-1 rounded-full border-2 border-border font-sans text-sm text-foreground hover:brightness-95"
+            style={{ backgroundColor: "oklch(0.958 0.012 85)" }}
             onClick={onCancel}
           >
             Cancel
           </Button>
           <Button
-            className="flex-1 bg-brown font-mono text-sm text-white hover:bg-brown/90"
+            size="lg"
+            className="flex-1 rounded-full bg-brown font-sans text-sm text-card hover:bg-brown/90"
             onClick={handleConfirm}
           >
             Confirm
@@ -1558,8 +1575,17 @@ async function generateReceiptCanvas(
 
   ctx.scale(SCALE, SCALE)
 
-  // ── Pre-load font ─────────────────────────────────────────────────────────
-  try { await document.fonts.load("500 14px 'Space Mono'") } catch {}
+  // ── Pre-load font (all weights used in canvas draws) ─────────────────────
+  try {
+    await Promise.all([
+      document.fonts.load("300 12px 'Space Mono'"),
+      document.fonts.load("400 12px 'Space Mono'"),
+      document.fonts.load("500 12px 'Space Mono'"),
+      document.fonts.load("500 14px 'Space Mono'"),
+      document.fonts.load("400 18px 'Space Mono'"),
+      document.fonts.load("500 24px 'Space Mono'"),
+    ])
+  } catch {}
 
   // ── Build customizations list (mirrors InteractiveCanvas logic) ───────────
   const toTitleCaseLocal = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : ""
