@@ -1171,64 +1171,99 @@ function DraggableSticker({
   const PILL_H = 26
   const PILL_W_APPROX = sticker.text.length * 7 + 24
 
+  // Scaled pill half-dimensions — used to position controls relative to pill edge
+  const halfW = (PILL_W_APPROX * sticker.scale) / 2
+  const halfH = (PILL_H * sticker.scale) / 2
+
+  // Selection box padding beyond the pill edge
+  const PAD = 6
+
   return (
-    <div
-      ref={stickerRef}
-      className="absolute"
-      style={{
-        left: `${sticker.x}%`,
-        top: `${sticker.y}%`,
-        transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
-        transformOrigin: "center center",
-        cursor: "grab",
-        userSelect: "none",
-        touchAction: "none",
-        zIndex: isSelected ? 20 : 10,
-      }}
-      onMouseDown={handleDragStart}
-      onTouchStart={handleDragStart}
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* The pill sticker itself */}
+    <>
+      {/* ── Scaled pill (drag target) ───────────────────────────────────────── */}
       <div
-        className="flex items-center justify-center rounded-full px-3 font-sans text-xs font-semibold"
+        ref={stickerRef}
+        className="absolute"
         style={{
-          backgroundColor: sticker.bg,
-          color: sticker.textColor,
-          height: PILL_H,
-          whiteSpace: "nowrap",
-          outline: isSelected ? "2px dashed rgba(203,68,106,0.8)" : "none",
-          outlineOffset: 3,
+          left: `${sticker.x}%`,
+          top: `${sticker.y}%`,
+          transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
+          transformOrigin: "center center",
+          userSelect: "none",
+          touchAction: "none",
+          zIndex: isSelected ? 20 : 10,
         }}
+        onMouseDown={handleDragStart}
+        onTouchStart={handleDragStart}
+        onClick={(e) => e.stopPropagation()}
       >
-        {sticker.text}
+        <div
+          className="flex items-center justify-center rounded-full px-3 font-sans text-xs font-semibold"
+          style={{
+            backgroundColor: sticker.bg,
+            color: sticker.textColor,
+            height: PILL_H,
+            whiteSpace: "nowrap",
+            cursor: "grab",
+          }}
+        >
+          {sticker.text}
+        </div>
       </div>
 
-      {/* Controls — only shown when selected */}
+      {/* ── Unscaled controls overlay (always fixed size, rotated to match pill) */}
       {isSelected && (
-        <>
-          {/* Delete button — outside top-right corner */}
+        <div
+          className="absolute"
+          style={{
+            left: `${sticker.x}%`,
+            top: `${sticker.y}%`,
+            transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)`,
+            transformOrigin: "center center",
+            pointerEvents: "none",
+            zIndex: 25,
+          }}
+        >
+          {/* Dashed selection box */}
+          <div
+            style={{
+              position: "absolute",
+              left: -(halfW + PAD),
+              top: -(halfH + PAD),
+              width: halfW * 2 + PAD * 2,
+              height: halfH * 2 + PAD * 2,
+              border: "2px dashed rgba(203,68,106,0.8)",
+              borderRadius: 4,
+              pointerEvents: "none",
+            }}
+          />
+
+          {/* X (delete) — top-right corner, counter-rotated to stay upright */}
           <button
             onMouseDown={(e) => { e.stopPropagation(); onDelete() }}
             onTouchStart={(e) => { e.stopPropagation(); onDelete() }}
+            onClick={(e) => e.stopPropagation()}
             className="absolute flex items-center justify-center rounded-full bg-pink-dark text-white"
             style={{
               width: 20,
               height: 20,
-              top: -14,
-              right: -14,
+              top: -(halfH + PAD + 10),
+              right: -(halfW + PAD + 10),
+              transform: `rotate(${-sticker.rotation}deg)`,
+              transformOrigin: "center center",
               zIndex: 30,
               cursor: "pointer",
               touchAction: "none",
+              pointerEvents: "auto",
             }}
           >
             <X className="size-3" />
           </button>
 
-          {/* Rotation handle — dot above the sticker on a vertical line */}
+          {/* Rotation handle — above center (desktop only) */}
           <div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{ top: -(PILL_H / 2 + 28), display: "flex", flexDirection: "column", alignItems: "center", gap: 0 }}
+            className="absolute left-1/2 -translate-x-1/2 md:flex hidden"
+            style={{ top: -(halfH + PAD + 28), flexDirection: "column", alignItems: "center", gap: 0, pointerEvents: "auto" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
@@ -1240,24 +1275,59 @@ function DraggableSticker({
             <div style={{ width: 1, height: 16, backgroundColor: "rgba(203,68,106,0.5)" }} />
           </div>
 
-          {/* Resize handle — bottom-right corner */}
+          {/* Resize handle — top-left (desktop only) */}
           <div
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
-            className="absolute rounded-sm bg-pink-dark"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute rounded-sm bg-pink-dark md:block hidden"
             style={{
-              width: 12,
-              height: 12,
-              bottom: -6,
-              right: -6,
+              width: 12, height: 12,
+              top: -(halfH + PAD + 6),
+              left: -(halfW + PAD + 6),
+              cursor: "nw-resize",
+              touchAction: "none",
+              zIndex: 30,
+              pointerEvents: "auto",
+            }}
+          />
+
+          {/* Resize handle — bottom-left (desktop only) */}
+          <div
+            onMouseDown={handleResizeStart}
+            onTouchStart={handleResizeStart}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute rounded-sm bg-pink-dark md:block hidden"
+            style={{
+              width: 12, height: 12,
+              bottom: -(halfH + PAD + 6),
+              left: -(halfW + PAD + 6),
+              cursor: "sw-resize",
+              touchAction: "none",
+              zIndex: 30,
+              pointerEvents: "auto",
+            }}
+          />
+
+          {/* Resize handle — bottom-right (desktop only) */}
+          <div
+            onMouseDown={handleResizeStart}
+            onTouchStart={handleResizeStart}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute rounded-sm bg-pink-dark md:block hidden"
+            style={{
+              width: 12, height: 12,
+              bottom: -(halfH + PAD + 6),
+              right: -(halfW + PAD + 6),
               cursor: "se-resize",
               touchAction: "none",
               zIndex: 30,
+              pointerEvents: "auto",
             }}
           />
-        </>
+        </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -1577,6 +1647,7 @@ async function generateReceiptCanvas(
 
   // ── Pre-load font (all weights used in canvas draws) ─────────────────────
   try {
+    await document.fonts.ready
     await Promise.all([
       document.fonts.load("300 12px 'Space Mono'"),
       document.fonts.load("400 12px 'Space Mono'"),
