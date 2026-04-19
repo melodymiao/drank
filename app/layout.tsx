@@ -34,8 +34,8 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning className={`${_instrumentSans.variable} ${_ibmPlexMono.variable} font-sans antialiased`}>
         {children}
-        <Analytics />
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   )

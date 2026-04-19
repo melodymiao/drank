@@ -871,8 +871,9 @@ function InteractiveCanvas({
       <div
         ref={containerRef}
         onClick={handleContainerClick}
-        className="relative w-[280px] rounded-sm px-5 py-6 overflow-hidden [&_*]:[font-family:inherit]"
-        style={{ backgroundColor: "rgba(254,252,244,0.9)", fontFamily: "'Space Mono', monospace", boxShadow: "0 4px 32px rgba(0,0,0,0.08)" }}
+        className="relative w-[280px] rounded-sm px-5 py-6 overflow-hidden"
+        style={{ backgroundColor: "rgba(254,252,244,0.9)", fontFamily: "'IBM Plex Mono', monospace", boxShadow: "0 4px 32px rgba(0,0,0,0.08)" }}
+
       >
         <ReceiptContent
           data={data}
@@ -947,6 +948,8 @@ function ReceiptContent({
   const titleSize = small ? "text-sm" : "text-2xl"          // drink name
   const ratingSize = small ? "size-10 text-sm" : "size-14 text-lg"
 
+  const IBM_PLEX_MONO: React.CSSProperties = { fontFamily: "'IBM Plex Mono', monospace" }
+
   return (
     <>
       {/* Rating circle */}
@@ -955,7 +958,7 @@ function ReceiptContent({
           className={cn("flex items-center justify-center rounded-full border-2", ratingSize)}
           style={{ borderColor: TEXT_COLOR }}
         >
-          <span className="font-mono font-normal" style={{ color: TEXT_COLOR }}>
+          <span className="font-normal" style={{ ...IBM_PLEX_MONO, color: TEXT_COLOR }}>
             {data.rating || "10.0"}
           </span>
         </div>
@@ -963,16 +966,16 @@ function ReceiptContent({
 
       {/* Cafe name */}
       <p
-        className={cn("mb-3 break-words text-center font-mono font-medium", textSize)}
-        style={{ color: TEXT_COLOR }}
+        className={cn("mb-3 break-words text-center font-medium", textSize)}
+        style={{ ...IBM_PLEX_MONO, color: TEXT_COLOR }}
       >
         {data.cafeName || "cafe"}
       </p>
 
       {/* Drink name */}
       <h3
-        className={cn("mb-3 break-words text-center font-mono font-medium leading-tight", titleSize)}
-        style={{ color: TEXT_COLOR }}
+        className={cn("mb-3 break-words text-center font-medium leading-tight", titleSize)}
+        style={{ ...IBM_PLEX_MONO, color: TEXT_COLOR }}
       >
         {data.drinkName || "Beverage"}
       </h3>
@@ -980,8 +983,8 @@ function ReceiptContent({
       {/* Customizations */}
       {customizations.length > 0 && (
         <p
-          className={cn("mb-3 break-words text-center font-mono font-medium", customSize)}
-          style={{ color: TEXT_COLOR }}
+          className={cn("mb-3 break-words text-center font-medium", customSize)}
+          style={{ ...IBM_PLEX_MONO, color: TEXT_COLOR }}
         >
           {customizations.join(", ")}
         </p>
@@ -1007,20 +1010,20 @@ function ReceiptContent({
 
       {/* Notes */}
       {data.comments && (
-        <p className={cn("mb-3 break-words font-mono font-light", textSize)} style={{ color: TEXT_COLOR }}>
+        <p className={cn("mb-3 break-words font-light", textSize)} style={{ ...IBM_PLEX_MONO, color: TEXT_COLOR }}>
           Notes: {data.comments}
         </p>
       )}
 
       {/* Location */}
       {data.location && (
-        <p className={cn("break-words font-mono font-light", textSize)} style={{ color: TEXT_COLOR }}>
+        <p className={cn("break-words font-light", textSize)} style={{ ...IBM_PLEX_MONO, color: TEXT_COLOR }}>
           {data.location}
         </p>
       )}
 
       {/* Date/Time */}
-      <p className={cn("mb-3 font-mono font-light", textSize)} style={{ color: TEXT_COLOR }}>
+      <p className={cn("mb-3 font-light", textSize)} style={{ ...IBM_PLEX_MONO, color: TEXT_COLOR }}>
         {formatDate(data.date)} {formatTime(data.time)}
       </p>
 
@@ -1028,8 +1031,8 @@ function ReceiptContent({
       <div className="mb-3 border-t" style={{ borderColor: TEXT_COLOR, opacity: 0.2 }} />
 
       {/* Footer */}
-      <p className={cn("text-center font-mono font-normal", textSize)} style={{ color: TEXT_COLOR }}>
-        Ranked with <span className="font-medium">drank</span>
+      <p className={cn("text-center font-normal", textSize)} style={{ ...IBM_PLEX_MONO, color: TEXT_COLOR }}>
+        Ranked with <span className="font-medium" style={IBM_PLEX_MONO}>drank</span>
       </p>
     </>
   )
@@ -1795,12 +1798,12 @@ async function generateReceiptCanvas(
   try {
     await document.fonts.ready
     await Promise.all([
-      document.fonts.load("300 12px 'Space Mono'"),
-      document.fonts.load("400 12px 'Space Mono'"),
-      document.fonts.load("500 12px 'Space Mono'"),
-      document.fonts.load("500 14px 'Space Mono'"),
-      document.fonts.load("400 18px 'Space Mono'"),
-      document.fonts.load("500 24px 'Space Mono'"),
+      document.fonts.load("300 12px 'IBM Plex Mono'"),
+      document.fonts.load("400 12px 'IBM Plex Mono'"),
+      document.fonts.load("500 12px 'IBM Plex Mono'"),
+      document.fonts.load("500 14px 'IBM Plex Mono'"),
+      document.fonts.load("400 18px 'IBM Plex Mono'"),
+      document.fonts.load("500 24px 'IBM Plex Mono'"),
     ])
   } catch {}
 
@@ -1847,13 +1850,13 @@ async function generateReceiptCanvas(
   h += 12 + 12  // text-xs + mb-3
 
   // Drink name (wrapping, text-2xl = 24px, line height ~28px)
-  ctx.font = "500 24px 'Space Mono', monospace"
+  ctx.font = "500 24px 'IBM Plex Mono', monospace"
   const drinkLines = wrapText(data.drinkName?.trim() || "Beverage", LW - LP * 2)
   h += drinkLines.length * 28 + 12  // lines + mb-3
 
   // Customizations
   if (customizations.length > 0) {
-    ctx.font = "500 14px 'Space Mono', monospace"
+    ctx.font = "500 14px 'IBM Plex Mono', monospace"
     const custText = customizations.join(", ")
     const customizationLines = wrapText(custText, LW - LP * 2)
     h += customizationLines.length * 18 + 12  // lines + mb-3
@@ -1868,7 +1871,7 @@ async function generateReceiptCanvas(
 
   // Notes
   if (data.comments?.trim()) {
-    ctx.font = "300 12px 'Space Mono', monospace"
+    ctx.font = "300 12px 'IBM Plex Mono', monospace"
     const noteLines = wrapText(`Notes: ${data.comments.trim()}`, LW - LP * 2)
     h += noteLines.length * 16 + 12  // lines + mb-3
   }
@@ -1908,18 +1911,18 @@ async function generateReceiptCanvas(
   ctx.textBaseline = "top"
 
   // Rebuild computed values for pass 2
-  ctx.font = "500 24px 'Space Mono', monospace"
+  ctx.font = "500 24px 'IBM Plex Mono', monospace"
   const drinkLines2 = wrapText(data.drinkName?.trim() || "Beverage", LW - LP * 2)
 
   let customizationLines2: string[] = []
   if (customizations.length > 0) {
-    ctx.font = "500 14px 'Space Mono', monospace"
+    ctx.font = "500 14px 'IBM Plex Mono', monospace"
     customizationLines2 = wrapText(customizations.join(", "), LW - LP * 2)
   }
 
   let noteLines2: string[] = []
   if (data.comments?.trim()) {
-    ctx.font = "300 12px 'Space Mono', monospace"
+    ctx.font = "300 12px 'IBM Plex Mono', monospace"
     noteLines2 = wrapText(`Notes: ${data.comments.trim()}`, LW - LP * 2)
   }
 
@@ -1930,7 +1933,7 @@ async function generateReceiptCanvas(
   ctx.beginPath()
   ctx.arc(cx, y + ratingR, ratingR, 0, Math.PI * 2)
   ctx.stroke()
-  ctx.font = "400 18px 'Space Mono', monospace"
+  ctx.font = "400 18px 'IBM Plex Mono', monospace"
   ctx.textAlign = "center"
   ctx.textBaseline = "alphabetic"
   const ratingText = data.rating || "10.0"
@@ -1941,20 +1944,20 @@ async function generateReceiptCanvas(
   y += ratingDiam + 12  // circle height + mb-3
 
   // ── Cafe name (text-xs, font-medium, mb-3) ────────────────────────────────
-  ctx.font = "500 12px 'Space Mono', monospace"
+  ctx.font = "500 12px 'IBM Plex Mono', monospace"
   ctx.fillStyle = TEXT_COLOR
   ctx.textAlign = "center"
   ctx.fillText((data.cafeName?.trim()) || "cafe", cx, y)
   y += 12 + 12  // font size + mb-3
 
   // ── Drink name (text-2xl, font-medium, mb-3) ───────────────────────────────
-  ctx.font = "500 24px 'Space Mono', monospace"
+  ctx.font = "500 24px 'IBM Plex Mono', monospace"
   for (const l of drinkLines2) { ctx.fillText(l, cx, y); y += 28 }
   y += 12  // mb-3
 
   // ── Customizations (text-sm, font-medium, mb-3) ───────────────────────────
   if (customizations.length > 0) {
-    ctx.font = "500 14px 'Space Mono', monospace"
+    ctx.font = "500 14px 'IBM Plex Mono', monospace"
     ctx.textAlign = "center"
     for (const l of customizationLines2) { ctx.fillText(l, cx, y); y += 18 }
     y += 12  // mb-3
@@ -1971,7 +1974,7 @@ async function generateReceiptCanvas(
 
   // ── Notes (text-xs, font-light, mb-3, left-aligned) ──────────────────────
   if (data.comments?.trim()) {
-    ctx.font = "300 12px 'Space Mono', monospace"
+    ctx.font = "300 12px 'IBM Plex Mono', monospace"
     ctx.textAlign = "left"
     for (const l of noteLines2) { ctx.fillText(l, SM + LP, y); y += 16 }
     y += 12  // mb-3
@@ -1979,7 +1982,7 @@ async function generateReceiptCanvas(
 
   // ── Location (text-xs, font-light, no bottom margin) ─────────────────────
   if (data.location?.trim()) {
-    ctx.font = "300 12px 'Space Mono', monospace"
+    ctx.font = "300 12px 'IBM Plex Mono', monospace"
     ctx.textAlign = "left"
     ctx.fillText(data.location.trim(), SM + LP, y)
     y += 12 + 4  // font + small gap before date
@@ -1994,7 +1997,7 @@ async function generateReceiptCanvas(
     const h12 = hh % 12 || 12
     return `${h12}:${minutes} ${ampm}`
   })() : "12:00 AM"
-  ctx.font = "300 12px 'Space Mono', monospace"
+  ctx.font = "300 12px 'IBM Plex Mono', monospace"
   ctx.textAlign = "left"
   ctx.fillText(`${dateStr} ${timeStr}`, SM + LP, y)
   y += 12 + 12  // font + mb-3
@@ -2013,14 +2016,14 @@ async function generateReceiptCanvas(
   // ── Footer ────────────────────────────────────────────────────────────────
   ctx.fillStyle = TEXT_COLOR
   ctx.textAlign = "center"
-  ctx.font = "400 12px 'Space Mono', monospace"
+  ctx.font = "400 12px 'IBM Plex Mono', monospace"
   const normW = ctx.measureText("Ranked with ").width
-  ctx.font = "500 12px 'Space Mono', monospace"
+  ctx.font = "500 12px 'IBM Plex Mono', monospace"
   const boldW = ctx.measureText("drank").width
   const totalFW = normW + boldW
-  ctx.font = "400 12px 'Space Mono', monospace"
+  ctx.font = "400 12px 'IBM Plex Mono', monospace"
   ctx.fillText("Ranked with ", cx - totalFW / 2 + normW / 2, y)
-  ctx.font = "500 12px 'Space Mono', monospace"
+  ctx.font = "500 12px 'IBM Plex Mono', monospace"
   ctx.fillText("drank", cx - totalFW / 2 + normW + boldW / 2, y)
 
   // ── Placed stickers ───────────────────────────────────────────────────────
