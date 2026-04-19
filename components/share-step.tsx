@@ -629,7 +629,7 @@ export function ShareStep({
 
               {/* Stickers panel - single responsive wrapping group */}
               <div className="rounded-xl border border-border bg-card p-4">
-                <p className="mb-3 text-center font-mono text-xs text-muted-foreground">
+                <p className="mb-3 text-center font-sans text-xs text-muted-foreground">
                   select a sticker to place it on your {activeTab === "story" ? "story" : "receipt"}
                 </p>
                 <div className="flex flex-wrap justify-center gap-3">
@@ -1001,6 +1001,8 @@ function DraggableSticker({
   const pinchStartRef = useRef<{
     startDist: number
     startScale: number
+    startAngle: number
+    startRotation: number
   } | null>(null)
 
   const getContainerBounds = () => containerRef.current?.getBoundingClientRect() ?? null
@@ -1011,7 +1013,7 @@ function DraggableSticker({
     return { x: 0, y: 0 }
   }
 
-  // ── Drag (with pinch-to-zoom on two-finger touch) ─────────────────────────
+  // ── Drag (with pinch-to-zoom+rotate on two-finger touch) ──────────────────
 
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation()
@@ -1020,7 +1022,12 @@ function DraggableSticker({
     if ("touches" in e && e.touches.length === 2) {
       const dx = e.touches[1].clientX - e.touches[0].clientX
       const dy = e.touches[1].clientY - e.touches[0].clientY
-      pinchStartRef.current = { startDist: Math.hypot(dx, dy), startScale: sticker.scale }
+      pinchStartRef.current = {
+        startDist: Math.hypot(dx, dy),
+        startScale: sticker.scale,
+        startAngle: Math.atan2(dy, dx) * (180 / Math.PI),
+        startRotation: sticker.rotation,
+      }
       dragStartRef.current = null
       return
     }
@@ -1037,23 +1044,30 @@ function DraggableSticker({
         dragStartRef.current = null
         const dx = e.touches[1].clientX - e.touches[0].clientX
         const dy = e.touches[1].clientY - e.touches[0].clientY
-        pinchStartRef.current = { startDist: Math.hypot(dx, dy), startScale: sticker.scale }
+        pinchStartRef.current = {
+          startDist: Math.hypot(dx, dy),
+          startScale: sticker.scale,
+          startAngle: Math.atan2(dy, dx) * (180 / Math.PI),
+          startRotation: sticker.rotation,
+        }
       }
     }
     document.addEventListener("touchstart", handleSecondTouch)
     return () => document.removeEventListener("touchstart", handleSecondTouch)
-  }, [sticker.scale])
+  }, [sticker.scale, sticker.rotation])
 
   useEffect(() => {
     const handleMove = (e: MouseEvent | TouchEvent) => {
-      // Pinch move (two fingers)
+      // Pinch move (two fingers) — update scale and rotation simultaneously
       if ("touches" in e && e.touches.length === 2 && pinchStartRef.current) {
         const dx = e.touches[1].clientX - e.touches[0].clientX
         const dy = e.touches[1].clientY - e.touches[0].clientY
         const dist = Math.hypot(dx, dy)
         if (pinchStartRef.current.startDist < 1) return
         const newScale = Math.max(0.3, Math.min(4, pinchStartRef.current.startScale * (dist / pinchStartRef.current.startDist)))
-        onUpdate({ scale: newScale })
+        const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI)
+        const newRotation = pinchStartRef.current.startRotation + (currentAngle - pinchStartRef.current.startAngle)
+        onUpdate({ scale: newScale, rotation: newRotation })
         return
       }
       if (!dragStartRef.current) return
@@ -1081,7 +1095,7 @@ function DraggableSticker({
       document.removeEventListener("touchmove", handleMove)
       document.removeEventListener("touchend", handleUp)
     }
-  }, [sticker.x, sticker.y, sticker.scale])
+  }, [sticker.x, sticker.y, sticker.scale, sticker.rotation])
 
   // ── Resize ────────────────────────────────────────────────────────────────
 
@@ -1509,7 +1523,7 @@ function ForegroundSelectionModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
       <div className="flex w-full max-w-sm flex-col gap-4 rounded-md p-4 shadow-xl" style={{ backgroundColor: "oklch(0.958 0.012 85)" }}>
-        <p className="text-center font-mono text-sm text-foreground">
+        <p className="text-center font-sans text-sm text-foreground">
           drag the box around your drink
         </p>
 
