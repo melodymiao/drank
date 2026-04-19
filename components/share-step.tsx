@@ -871,7 +871,7 @@ function InteractiveCanvas({
       <div
         ref={containerRef}
         onClick={handleContainerClick}
-        className="relative w-[280px] rounded-sm px-5 py-6 overflow-hidden"
+        className="relative w-[280px] rounded-sm px-5 py-6 overflow-hidden [&_*]:[font-family:inherit]"
         style={{ backgroundColor: "rgba(254,252,244,0.9)", fontFamily: "'Space Mono', monospace", boxShadow: "0 4px 32px rgba(0,0,0,0.08)" }}
       >
         <ReceiptContent
