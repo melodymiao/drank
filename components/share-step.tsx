@@ -694,6 +694,16 @@ function formatTime(timeStr: string): string {
   return `${h12}:${minutes} ${ampm}`
 }
 
+/* ============================================================
+   Snap line types
+   ============================================================ */
+
+interface SnapLine {
+  id: string
+  axis: "x" | "y"
+  pct: number // 0-100 percentage position along the perpendicular axis
+}
+
 function InteractiveCanvas({
   data,
   stickerImage,
@@ -724,6 +734,8 @@ function InteractiveCanvas({
   storyReceiptUrl?: string | null
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const storyReceiptImgRef = useRef<HTMLImageElement | null>(null)
+  const [activeSnapLineIds, setActiveSnapLineIds] = useState<string[]>([])
 
   const customizations: string[] = []
   if (data.iceTemp) customizations.push(toTitleCase(data.iceTemp))
@@ -752,6 +764,36 @@ function InteractiveCanvas({
     onCanvasClick()
   }
 
+  // Compute the static snap lines for this canvas mode.
+  // Called at render time — reads refs so always reflects current layout.
+  const getStaticSnapLines = (): SnapLine[] => {
+    const lines: SnapLine[] = [
+      { id: "cx", axis: "x", pct: 50 },
+      { id: "cy", axis: "y", pct: 50 },
+    ]
+
+    if (mode === "story" && storyReceiptImgRef.current && containerRef.current) {
+      const cRect = containerRef.current.getBoundingClientRect()
+      const rRect = storyReceiptImgRef.current.getBoundingClientRect()
+      if (cRect.width > 0 && cRect.height > 0) {
+        const left   = ((rRect.left   - cRect.left)  / cRect.width)  * 100
+        const right  = ((rRect.right  - cRect.left)  / cRect.width)  * 100
+        const top    = ((rRect.top    - cRect.top)    / cRect.height) * 100
+        const bottom = ((rRect.bottom - cRect.top)    / cRect.height) * 100
+        lines.push(
+          { id: "r-left",   axis: "x", pct: left             },
+          { id: "r-right",  axis: "x", pct: right            },
+          { id: "r-top",    axis: "y", pct: top              },
+          { id: "r-bottom", axis: "y", pct: bottom           },
+          { id: "r-cx",     axis: "x", pct: (left + right)/2 },
+          { id: "r-cy",     axis: "y", pct: (top + bottom)/2 },
+        )
+      }
+    }
+
+    return lines
+  }
+
   if (mode === "story" && backgroundImage) {
     // Story mode: 9:16 aspect ratio, constrained so download button is never pushed off screen
     return (
@@ -776,6 +818,7 @@ function InteractiveCanvas({
         {/* Receipt overlay — screenshot of the real receipt, scaled to fit, 90% opacity */}
         {storyReceiptUrl && (
           <img
+            ref={storyReceiptImgRef}
             src={storyReceiptUrl}
             alt="receipt"
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
@@ -783,6 +826,25 @@ function InteractiveCanvas({
             draggable={false}
           />
         )}
+
+        {/* Snap guidelines — only render lines that are currently active */}
+        {activeSnapLineIds.map((id) => {
+          // Resolve line definition: static center lines or other-sticker lines
+          const allStatic = getStaticSnapLines()
+          const allOther = placedStickers
+            .filter(s => s.id !== selectedStickerId)
+            .flatMap(s => ([
+              { id: `s-${s.id}-cx`, axis: "x" as const, pct: s.x },
+              { id: `s-${s.id}-cy`, axis: "y" as const, pct: s.y },
+            ]))
+          const line = [...allStatic, ...allOther].find(l => l.id === id)
+          if (!line) return null
+          return line.axis === "x" ? (
+            <div key={id} className="pointer-events-none absolute inset-y-0" style={{ left: `${line.pct}%`, width: 1, backgroundColor: "rgba(155,207,236,0.85)", zIndex: 40 }} />
+          ) : (
+            <div key={id} className="pointer-events-none absolute inset-x-0" style={{ top: `${line.pct}%`, height: 1, backgroundColor: "rgba(155,207,236,0.85)", zIndex: 40 }} />
+          )
+        })}
 
         {/* Placed stickers */}
         {placedStickers.map((sticker) => (
@@ -794,6 +856,9 @@ function InteractiveCanvas({
             onUpdate={(updates) => onUpdateSticker(sticker.id, updates)}
             onDelete={() => onDeleteSticker(sticker.id)}
             containerRef={containerRef}
+            otherStickers={placedStickers.filter(s => s.id !== sticker.id)}
+            getStaticSnapLines={getStaticSnapLines}
+            onSnapChange={setActiveSnapLineIds}
           />
         ))}
       </div>
@@ -818,6 +883,24 @@ function InteractiveCanvas({
           formatTime={formatTimeLocal}
         />
 
+        {/* Snap guidelines — only render lines that are currently active */}
+        {activeSnapLineIds.map((id) => {
+          const allOther = placedStickers
+            .filter(s => s.id !== selectedStickerId)
+            .flatMap(s => ([
+              { id: `s-${s.id}-cx`, axis: "x" as const, pct: s.x },
+              { id: `s-${s.id}-cy`, axis: "y" as const, pct: s.y },
+            ]))
+          const staticR = getStaticSnapLines()
+          const line = [...staticR, ...allOther].find(l => l.id === id)
+          if (!line) return null
+          return line.axis === "x" ? (
+            <div key={id} className="pointer-events-none absolute inset-y-0" style={{ left: `${line.pct}%`, width: 1, backgroundColor: "rgba(155,207,236,0.7)", zIndex: 40 }} />
+          ) : (
+            <div key={id} className="pointer-events-none absolute inset-x-0" style={{ top: `${line.pct}%`, height: 1, backgroundColor: "rgba(155,207,236,0.7)", zIndex: 40 }} />
+          )
+        })}
+
         {/* Placed stickers — inside receipt div so they are bounded to it */}
         {placedStickers.map((sticker) => (
           <DraggableSticker
@@ -828,6 +911,9 @@ function InteractiveCanvas({
             onUpdate={(updates) => onUpdateSticker(sticker.id, updates)}
             onDelete={() => onDeleteSticker(sticker.id)}
             containerRef={containerRef}
+            otherStickers={placedStickers.filter(s => s.id !== sticker.id)}
+            getStaticSnapLines={getStaticSnapLines}
+            onSnapChange={setActiveSnapLineIds}
           />
         ))}
       </div>
@@ -960,6 +1046,9 @@ function DraggableSticker({
   onUpdate,
   onDelete,
   containerRef,
+  otherStickers = [],
+  getStaticSnapLines = () => [{ id: "cx", axis: "x" as const, pct: 50 }, { id: "cy", axis: "y" as const, pct: 50 }],
+  onSnapChange,
 }: {
   sticker: PlacedSticker
   isSelected: boolean
@@ -967,10 +1056,20 @@ function DraggableSticker({
   onUpdate: (updates: Partial<PlacedSticker>) => void
   onDelete: () => void
   containerRef: React.RefObject<HTMLDivElement | null>
+  otherStickers?: PlacedSticker[]
+  getStaticSnapLines?: () => SnapLine[]
+  onSnapChange?: (ids: string[]) => void
 }) {
   const stickerRef = useRef<HTMLDivElement>(null)
 
-  // Drag state
+  // Refs for snap data — read at drag-move time so always fresh (no stale closures)
+  const getStaticSnapLinesRef = useRef(getStaticSnapLines)
+  const otherStickersRef = useRef(otherStickers)
+  const onSnapChangeRef = useRef(onSnapChange)
+  useEffect(() => { getStaticSnapLinesRef.current = getStaticSnapLines })
+  useEffect(() => { otherStickersRef.current = otherStickers })
+  useEffect(() => { onSnapChangeRef.current = onSnapChange })
+
   const dragStartRef = useRef<{
     clientX: number
     clientY: number
@@ -1057,6 +1156,8 @@ function DraggableSticker({
   }, [sticker.scale, sticker.rotation])
 
   useEffect(() => {
+    const SNAP_THRESH = 3.5 // percentage points within which snap activates
+
     const handleMove = (e: MouseEvent | TouchEvent) => {
       // Pinch move (two fingers) — update scale and rotation simultaneously
       if ("touches" in e && e.touches.length === 2 && pinchStartRef.current) {
@@ -1066,24 +1167,50 @@ function DraggableSticker({
         if (pinchStartRef.current.startDist < 1) return
         const newScale = Math.max(0.3, Math.min(4, pinchStartRef.current.startScale * (dist / pinchStartRef.current.startDist)))
         const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI)
-        const newRotation = pinchStartRef.current.startRotation + (currentAngle - pinchStartRef.current.startAngle)
-        onUpdate({ scale: newScale, rotation: newRotation })
+        const rawRotation = pinchStartRef.current.startRotation + (currentAngle - pinchStartRef.current.startAngle)
+        // Snap rotation to 0°
+        const norm = ((rawRotation % 360) + 360) % 360
+        const nearZero = norm <= 5 || norm >= 355
+        onUpdate({ scale: newScale, rotation: nearZero ? 0 : rawRotation })
         return
       }
       if (!dragStartRef.current) return
       const bounds = getContainerBounds()
       if (!bounds) return
       const { x, y } = getClient(e)
-      const dx = ((x - dragStartRef.current.clientX) / bounds.width) * 100
-      const dy = ((y - dragStartRef.current.clientY) / bounds.height) * 100
-      onUpdate({
-        x: Math.max(0, Math.min(100, dragStartRef.current.startX + dx)),
-        y: Math.max(0, Math.min(100, dragStartRef.current.startY + dy)),
-      })
+      const rawDx = ((x - dragStartRef.current.clientX) / bounds.width) * 100
+      const rawDy = ((y - dragStartRef.current.clientY) / bounds.height) * 100
+      let newX = Math.max(0, Math.min(100, dragStartRef.current.startX + rawDx))
+      let newY = Math.max(0, Math.min(100, dragStartRef.current.startY + rawDy))
+
+      // Build all snap targets — call getter at move time so rect values are always fresh
+      const allLines: SnapLine[] = [
+        ...getStaticSnapLinesRef.current(),
+        ...otherStickersRef.current.flatMap(s => ([
+          { id: `s-${s.id}-cx`, axis: "x" as const, pct: s.x },
+          { id: `s-${s.id}-cy`, axis: "y" as const, pct: s.y },
+        ])),
+      ]
+
+      const snappedIds: string[] = []
+      for (const line of allLines) {
+        if (line.axis === "x" && Math.abs(newX - line.pct) < SNAP_THRESH) {
+          newX = line.pct
+          snappedIds.push(line.id)
+        }
+        if (line.axis === "y" && Math.abs(newY - line.pct) < SNAP_THRESH) {
+          newY = line.pct
+          snappedIds.push(line.id)
+        }
+      }
+
+      onSnapChangeRef.current?.(snappedIds)
+      onUpdate({ x: newX, y: newY })
     }
     const handleUp = (e: MouseEvent | TouchEvent) => {
       if ("touches" in e && e.touches.length < 2) pinchStartRef.current = null
       dragStartRef.current = null
+      onSnapChangeRef.current?.([])
     }
     document.addEventListener("mousemove", handleMove)
     document.addEventListener("mouseup", handleUp)
@@ -1161,12 +1288,17 @@ function DraggableSticker({
   }
 
   useEffect(() => {
+    const ROTATION_SNAP_DEG = 5 // degrees within which rotation snaps to 0
     const handleMove = (e: MouseEvent | TouchEvent) => {
       if (!rotateStartRef.current) return
       const { x, y } = getClient(e)
       const { originX, originY, startAngle, startRotation } = rotateStartRef.current
       const angle = Math.atan2(y - originY, x - originX) * (180 / Math.PI)
-      onUpdate({ rotation: startRotation + (angle - startAngle) })
+      const rawRotation = startRotation + (angle - startAngle)
+      // Normalize to -180..180 for snap check
+      const norm = ((rawRotation % 360) + 360) % 360
+      const nearZero = norm <= ROTATION_SNAP_DEG || norm >= (360 - ROTATION_SNAP_DEG)
+      onUpdate({ rotation: nearZero ? 0 : rawRotation })
     }
     const handleUp = () => { rotateStartRef.current = null }
     document.addEventListener("mousemove", handleMove)
