@@ -6,6 +6,7 @@ import { StepIndicator } from "@/components/step-indicator"
 import { UploadStep } from "@/components/upload-step"
 import { DecorateStep, type ReceiptData, type StickerItem } from "@/components/decorate-step"
 import { ShareStep } from "@/components/share-step"
+import { saveReceipt } from "@/lib/receipt-store"
 
 const defaultReceiptData: ReceiptData = {
   cafeName: "",
@@ -17,7 +18,9 @@ const defaultReceiptData: ReceiptData = {
   time: "",
   iceTemp: "",
   iceLevel: "",
+  otherIceLevel: "",
   sugarLevel: "",
+  otherSugarLevel: "",
   milk: "",
   otherMilk: "",
   toppings: [],
@@ -29,6 +32,19 @@ export default function DrankApp() {
   const [image, setImage] = useState<string | null>(null)
   const [receiptData, setReceiptData] = useState<ReceiptData>(defaultReceiptData)
   const [stickers, setStickers] = useState<StickerItem[]>([])
+  const [receiptId, setReceiptId] = useState<string | null>(null)
+
+  const goToRank = useCallback(() => {
+    setReceiptId(crypto.randomUUID())
+    setStep(2)
+  }, [])
+
+  const goToShare = useCallback(async () => {
+    if (receiptId) {
+      await saveReceipt(receiptId, receiptData, image)
+    }
+    setStep(3)
+  }, [receiptId, receiptData, image])
 
   const handleImageUpload = useCallback(
     (img: string, exifDate?: string, exifLocation?: string, exifCafe?: string) => {
@@ -61,6 +77,7 @@ export default function DrankApp() {
     setImage(null)
     setReceiptData(defaultReceiptData)
     setStickers([])
+    setReceiptId(null)
   }, [])
 
   return (
@@ -98,10 +115,9 @@ export default function DrankApp() {
                   time: timePart,
                 }))
               }
-              setStep(2)
+              goToRank()
             }}
             onSkip={() => {
-              // Set current date/time when skipping
               const now = new Date()
               const y = now.getFullYear()
               const m = String(now.getMonth() + 1).padStart(2, "0")
@@ -113,7 +129,7 @@ export default function DrankApp() {
                 date: datePart,
                 time: timePart,
               }))
-              setStep(2)
+              goToRank()
             }}
           />
         )}
@@ -125,7 +141,7 @@ export default function DrankApp() {
             stickers={stickers}
             onStickersChange={setStickers}
             onUpdate={handleReceiptUpdate}
-            onNext={() => setStep(3)}
+            onNext={goToShare}
             onBack={() => setStep(1)}
           />
         )}
@@ -135,6 +151,7 @@ export default function DrankApp() {
             data={receiptData}
             image={image}
             stickers={stickers}
+            receiptId={receiptId!}
             onReset={handleReset}
             onBack={() => setStep(2)}
             onImageUpload={handleImageUpload}

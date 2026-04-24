@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Download, RotateCcw, ArrowLeft, Upload, X, CupSoda } from "lucide-react"
+import { RotateCcw, ArrowLeft, Upload, X, CupSoda } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ReceiptData, StickerItem } from "@/components/decorate-step"
 import { removeBackground } from "@imgly/background-removal"
 import { ERRORS, pickError } from "@/lib/errors"
+import { updateReceipt } from "@/lib/receipt-store"
 
 /* ============================================================
    Sticker Definitions
@@ -63,6 +64,7 @@ interface ShareStepProps {
   data: ReceiptData
   image: string | null
   stickers: StickerItem[]
+  receiptId: string
   onReset: () => void
   onBack: () => void
   onImageUpload: (image: string, exifDate?: string) => void
@@ -85,6 +87,7 @@ const TEXT_COLOR = "#473C23"
 export function ShareStep({
   data,
   image,
+  receiptId,
   onReset,
   onBack,
   onImageUpload,
@@ -110,8 +113,8 @@ export function ShareStep({
   const [hasEverSelected, setHasEverSelected] = useState(false)
 
   const [activeTab, setActiveTab] = useState<"story" | "receipt">(image ? "story" : "receipt")
-  const [saveModalUrl, setSaveModalUrl] = useState<string | null>(null)
-  const [saveModalFilename, setSaveModalFilename] = useState<string>("")
+  const [hasSaved, setHasSaved] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   // Separate sticker arrays for each canvas
   const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>([])
@@ -277,35 +280,43 @@ export function ShareStep({
     setShowSelectionModal(true)
   }, [])
 
-  const handleDownloadReceipt = useCallback(() => {
-    if (!receiptUrl) return
-    const filename = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}.png`
-    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-    if (isMobile) {
-      setSaveModalFilename(filename)
-      setSaveModalUrl(receiptUrl)
-    } else {
-      const link = document.createElement("a")
-      link.download = filename
-      link.href = receiptUrl
-      link.click()
-    }
-  }, [receiptUrl, data.drinkName])
+  const handleSave = useCallback(async () => {
+    const url = activeTab === "story" ? storyUrl : receiptUrl
+    if (!url) return
 
-  const handleDownloadStory = useCallback(() => {
-    if (!storyUrl) return
-    const filename = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}-story.png`
+    const isFirstSave = !hasSaved
+    updateReceipt(receiptId, { receiptStickers, storyStickers, showDrinkSticker })
+    setHasSaved(true)
+    const msg = isFirstSave ? "Saved to drank history" : "Drank history updated"
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3000)
+
+    const drinkSlug = data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"
+    const filename = activeTab === "story"
+      ? `drank-${drinkSlug}-story.png`
+      : `drank-${drinkSlug}.png`
+
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
     if (isMobile) {
-      setSaveModalFilename(filename)
-      setSaveModalUrl(storyUrl)
-    } else {
-      const link = document.createElement("a")
-      link.download = filename
-      link.href = storyUrl
-      link.click()
+      try {
+        const res = await fetch(url)
+        const blob = await res.blob()
+        const file = new File([blob], filename, { type: "image/png" })
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file] })
+          return
+        }
+      } catch {
+        // fall through to link download
+      }
     }
-  }, [storyUrl, data.drinkName])
+
+    const link = document.createElement("a")
+    link.download = filename
+    link.href = url
+    link.click()
+  }, [activeTab, storyUrl, receiptUrl, hasSaved, receiptId, receiptStickers, storyStickers, showDrinkSticker, data.drinkName])
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -492,6 +503,16 @@ export function ShareStep({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
+      {/* Toast notification */}
+      {toastMessage && (
+        <div
+          className="fixed left-4 top-4 z-50 rounded-lg bg-green-light px-4 py-2.5 shadow-lg"
+          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards" }}
+        >
+          <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
+        </div>
+      )}
+
       {/* Hidden canvases for export */}
       <canvas ref={receiptCanvasRef} className="hidden" />
       <canvas ref={storyCanvasRef} className="hidden" />
@@ -512,15 +533,6 @@ export function ShareStep({
           initialRect={selectionRect}
           onConfirm={handleSelectionConfirm}
           onCancel={() => setShowSelectionModal(false)}
-        />
-      )}
-
-      {/* Save Image Modal — shown on mobile instead of <a download> */}
-      {saveModalUrl && (
-        <SaveImageModal
-          url={saveModalUrl}
-          filename={saveModalFilename}
-          onClose={() => setSaveModalUrl(null)}
         />
       )}
 
@@ -588,11 +600,10 @@ export function ShareStep({
                 size="lg"
                 className="w-full max-w-[200px] bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
                 style={{ paddingTop: 24, paddingBottom: 24 }}
-                onClick={activeTab === "story" ? handleDownloadStory : handleDownloadReceipt}
+                onClick={handleSave}
                 disabled={isGenerating || (activeTab === "story" && !storyUrl)}
               >
-                <Download className="size-4" />
-                {activeTab === "story" ? "Download Story" : "Download Receipt"}
+                {activeTab === "story" ? "Save Story" : "Save Receipt"}
               </Button>
             </div>
 
@@ -654,17 +665,16 @@ export function ShareStep({
         </div>
       </div>
 
-      {/* Mobile fixed bottom bar — Download only */}
+      {/* Mobile fixed bottom bar — Save only */}
       <div className="fixed inset-x-0 bottom-0 z-20 p-4 md:hidden">
         <Button
           size="lg"
           className="w-full bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
           style={{ paddingTop: 24, paddingBottom: 24 }}
-          onClick={activeTab === "story" ? handleDownloadStory : handleDownloadReceipt}
+          onClick={handleSave}
           disabled={isGenerating || (activeTab === "story" && !storyUrl)}
         >
-          <Download className="size-4" />
-          {activeTab === "story" ? "Download Story" : "Download Receipt"}
+          {activeTab === "story" ? "Save Story" : "Save Receipt"}
         </Button>
       </div>
     </div>
@@ -1483,58 +1493,6 @@ function DraggableSticker({
 /* ============================================================
    Save Image Modal (mobile)
    ============================================================ */
-
-function SaveImageModal({
-  url,
-  filename,
-  onClose,
-}: {
-  url: string
-  filename: string
-  onClose: () => void
-}) {
-  const handleBrowserDownload = () => {
-    const link = document.createElement("a")
-    link.download = filename
-    link.href = url
-    link.click()
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-xl">
-        <h3 className="mb-2 text-center font-mono text-base font-medium text-foreground">
-          Save your image
-        </h3>
-        <p className="mb-4 text-center font-sans text-sm text-muted-foreground">
-          Press and hold the image below, then tap "Save to Photos"
-        </p>
-        <div className="mb-4 flex justify-center">
-          <img
-            src={url}
-            alt="Receipt to save"
-            className="max-h-64 rounded-lg object-contain shadow-md"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Button
-            className="w-full bg-brown font-sans text-sm text-white hover:bg-brown/90"
-            onClick={onClose}
-          >
-            Done
-          </Button>
-          <button
-            onClick={handleBrowserDownload}
-            className="font-sans text-xs text-muted-foreground underline transition-colors hover:opacity-70"
-          >
-            download to browser instead
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 /* ============================================================
    Foreground Selection Modal
