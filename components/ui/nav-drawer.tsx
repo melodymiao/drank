@@ -38,22 +38,12 @@ function HistoryIcon({ className }: { className?: string }) {
   )
 }
 
-function ProfileIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="12" r="5" stroke="currentColor" strokeWidth="2"/>
-      <path d="M6 26c0-5.523 4.477-8 10-8s10 2.477 10 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
 /* ─────────────────────────────────────────────────────────────
-   Nav items
+   Nav items — profile removed
 ─────────────────────────────────────────────────────────────── */
 const NAV_ITEMS = [
   { label: "rank",    href: "/",        Icon: RankIcon,    disabled: false },
   { label: "history", href: "/history", Icon: HistoryIcon, disabled: false },
-  { label: "profile", href: "/profile", Icon: ProfileIcon, disabled: true  },
 ] as const
 
 /* ─────────────────────────────────────────────────────────────
@@ -114,7 +104,7 @@ export function NavDrawer({ open, onClose, onNavigate }: NavDrawerProps) {
       >
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
-          <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+          <span className="font-sans text-xs uppercase tracking-widest text-muted-foreground">
             menu
           </span>
           <button
@@ -145,13 +135,9 @@ export function NavDrawer({ open, onClose, onNavigate }: NavDrawerProps) {
                 )}
               >
                 <Icon className="size-7 shrink-0" />
-                <span className="flex flex-1 items-center font-mono text-sm tracking-wide">
+                {/* Changed from font-mono to font-sans */}
+                <span className="flex flex-1 items-center font-sans text-sm tracking-wide">
                   {label}
-                  {disabled && (
-                    <span className="ml-auto font-sans text-[10px] uppercase tracking-wider text-muted-foreground/50">
-                      soon
-                    </span>
-                  )}
                 </span>
               </Link>
             )
@@ -159,6 +145,29 @@ export function NavDrawer({ open, onClose, onNavigate }: NavDrawerProps) {
         </nav>
       </div>
     </>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DesktopNav — horizontal inline links for page headers
+─────────────────────────────────────────────────────────────── */
+export function DesktopNav() {
+  const pathname = usePathname()
+  return (
+    <nav className="hidden items-center gap-4 md:flex">
+      <Link
+        href="/"
+        className="font-sans text-sm text-green-dark transition-colors hover:opacity-70"
+      >
+        Rank
+      </Link>
+      <Link
+        href="/history"
+        className="font-sans text-sm text-green-dark transition-colors hover:opacity-70"
+      >
+        History
+      </Link>
+    </nav>
   )
 }
 

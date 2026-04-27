@@ -8,7 +8,7 @@ import { StepIndicator } from "@/components/step-indicator"
 import { UploadStep } from "@/components/upload-step"
 import { DecorateStep, type ReceiptData, type StickerItem } from "@/components/decorate-step"
 import { ShareStep } from "@/components/share-step"
-import { NavDrawer, HamburgerButton } from "@/components/ui/nav-drawer"
+import { NavDrawer, HamburgerButton, DesktopNav } from "@/components/ui/nav-drawer"
 import { Button } from "@/components/ui/button"
 import { saveReceipt } from "@/lib/receipt-store"
 
@@ -123,40 +123,26 @@ export default function DrankApp() {
   return (
     <main className="relative flex h-dvh flex-col overflow-hidden bg-background">
       {/* ── Header ─────────────────────────────────────────────── */}
-      <header className="relative flex shrink-0 items-center justify-center px-4 pb-2 pt-4 md:px-6">
+      <header className="relative flex shrink-0 items-center justify-center px-4 pb-4 pt-4 md:px-6">
+      <div className="absolute left-4 md:hidden">
+        <HamburgerButton onClick={() => setDrawerOpen(true)} />
+      </div>
 
-        {/* Mobile: hamburger left */}
-        <div className="absolute left-4 md:hidden">
-          <HamburgerButton onClick={() => setDrawerOpen(true)} />
-        </div>
+      <Link href="/" aria-label="drank — go to rank">
+        <Image
+          src="/logo.png"
+          alt="drank"
+          width={80}
+          height={24}
+          className="h-6 w-auto transition-opacity hover:opacity-70"
+          priority
+        />
+      </Link>
 
-        {/* Logo — always centered, acts as home/rank link */}
-        <Link
-          href="/"
-          onClick={(e) => { if (step === 2) { e.preventDefault(); setLeaveTarget("/") } }}
-          aria-label="drank — go to rank"
-        >
-          <Image
-            src="/logo.png"
-            alt="drank"
-            width={80}
-            height={24}
-            className="h-6 w-auto transition-opacity hover:opacity-70"
-            priority
-          />
-        </Link>
-
-        {/* Desktop: history link right. Mobile: hidden (lives in drawer). */}
-        <div className="absolute right-4 hidden md:block">
-          <Link
-            href="/history"
-            onClick={(e) => { if (step === 2) { e.preventDefault(); setLeaveTarget("/history") } }}
-            className="font-sans text-sm text-green-dark transition-colors hover:opacity-70"
-          >
-            History
-          </Link>
-        </div>
-      </header>
+      <div className="absolute right-4 hidden md:block">
+        <DesktopNav />
+      </div>
+    </header>
 
       {/* Step indicator */}
       <div className="flex shrink-0 justify-center pb-2">
