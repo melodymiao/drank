@@ -62,6 +62,11 @@ export interface SavedReceipt {
   imageDataUrl: string | null
   /** ~80px wide JPEG data URL — always present when imageDataUrl is set */
   thumbnailDataUrl: string | null
+  /**
+   * Background-removed drink PNG data URL — set when the user enables the
+   * drink sticker and saves. Used as the gallery/list thumbnail when present.
+   */
+  bgRemovedImageDataUrl: string | null
 
   // ── Share step state ──────────────────────────────────────────────────
   /** Placed stickers on the receipt canvas at time of last save */
@@ -70,6 +75,17 @@ export interface SavedReceipt {
   storyStickers: StoredSticker[]
   /** Whether the drink sticker was enabled at time of last save */
   showDrinkSticker: boolean
+  /**
+   * The "best" saved canvas PNG for this receipt — used in the history detail
+   * view instead of re-rendering the DOM receipt. Priority (highest wins):
+   *   2 — story canvas with drink sticker
+   *   1 — story canvas without drink sticker
+   *   0 — receipt canvas only
+   * null if the user has never hit Save.
+   */
+  savedCanvasDataUrl: string | null
+  /** Priority level of savedCanvasDataUrl (0/1/2). -1 means not yet saved. */
+  savedCanvasPriority: number
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -187,9 +203,12 @@ export async function saveReceipt(
     ...data,
     imageDataUrl,
     thumbnailDataUrl,
+    bgRemovedImageDataUrl: null,
     receiptStickers: [],
     storyStickers: [],
     showDrinkSticker: false,
+    savedCanvasDataUrl: null,
+    savedCanvasPriority: -1,
   }
 
   const all = readAll()
@@ -210,6 +229,10 @@ export async function saveReceipt(
  * Updates an existing receipt.
  * Called when the user taps "Save Story" / "Save Receipt" on the share step.
  * Pass only the fields that changed — everything else is preserved.
+ *
+ * Special rule: savedCanvasDataUrl is only written when the incoming
+ * savedCanvasPriority is >= the existing value, so the "most detailed"
+ * version (story with drink sticker) is never overwritten by a simpler save.
  */
 export function updateReceipt(
   id: string,
@@ -221,21 +244,50 @@ export function updateReceipt(
     console.warn(`[receipt-store] updateReceipt: id ${id} not found`)
     return
   }
+
+  const existing = all[idx]
+
+  // If the incoming update carries a canvas, only accept it when it is at least
+  // as "detailed" as what we already have stored.
+  const incomingPriority = updates.savedCanvasPriority ?? -1
+  const existingPriority = existing.savedCanvasPriority ?? -1
+  const canvasUpdates =
+    incomingPriority >= existingPriority
+      ? {}
+      : { savedCanvasDataUrl: existing.savedCanvasDataUrl, savedCanvasPriority: existingPriority }
+
   all[idx] = {
-    ...all[idx],
+    ...existing,
     ...updates,
+    ...canvasUpdates,
     updatedAt: new Date().toISOString(),
   }
   writeAll(all)
 }
 
-/** Returns all receipts, sorted by rating descending (highest first). */
-export function getReceipts(): SavedReceipt[] {
+export type ReceiptSortBy = "rating" | "latest"
+export type ReceiptSortDir = "asc" | "desc"
+
+/**
+ * Returns all receipts sorted by the given field and direction.
+ * Defaults: rating descending (highest first).
+ */
+export function getReceipts(
+  sortBy: ReceiptSortBy = "rating",
+  dir: ReceiptSortDir = "desc"
+): SavedReceipt[] {
   const all = readAll()
   return [...all].sort((a, b) => {
-    const ra = parseFloat(a.rating) || 0
-    const rb = parseFloat(b.rating) || 0
-    return rb - ra
+    let delta: number
+    if (sortBy === "rating") {
+      const ra = parseFloat(a.rating) || 0
+      const rb = parseFloat(b.rating) || 0
+      delta = rb - ra // desc by default
+    } else {
+      // latest: sort by updatedAt
+      delta = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    }
+    return dir === "asc" ? -delta : delta
   })
 }
 

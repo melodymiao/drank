@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { LayoutList, LayoutGrid, ChevronDown, Trash2, Pencil } from "lucide-react"
+import { LayoutList, LayoutGrid, ChevronDown, Trash2, Pencil, ArrowUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getReceipts,
@@ -13,15 +13,15 @@ import {
   getCafeOptions,
   getLocationOptions,
   type SavedReceipt,
+  type ReceiptSortBy,
+  type ReceiptSortDir,
 } from "@/lib/receipt-store"
-import type { ReceiptData } from "@/components/decorate-step"
 import { NavDrawer, HamburgerButton, DesktopNav } from "@/components/ui/nav-drawer"
 import { Button } from "@/components/ui/button"
 
 /* ─────────────────────────────────────────────────────────────
    Helpers
 ─────────────────────────────────────────────────────────────── */
-
 
 function getRatingColor(rating: string): string {
   const n = parseFloat(rating)
@@ -65,7 +65,6 @@ function StatsBar() {
   ]
 
   return (
-    // On mobile: overflow-x-auto scroll. On desktop: flex with each card flex-1 to fill the width.
     <div className="flex gap-3 overflow-x-auto pb-1 md:overflow-x-visible">
       {items.map(({ label, value }) => (
         <div key={label} className="flex shrink-0 flex-col items-center rounded-xl border border-border bg-card px-4 py-6 md:flex-1 md:shrink">
@@ -109,7 +108,6 @@ function FilterChip({
 }: FilterChipProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
 
-  // Close on outside click
   useEffect(() => {
     if (!isOpen) return
     function handleClick(e: MouseEvent) {
@@ -143,10 +141,8 @@ function FilterChip({
         )}
       </button>
 
-      {/* Dropdown panel */}
       {isOpen && options && selected && onToggle && (
         <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-border bg-card shadow-lg">
-          {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
             <span className="font-mono text-xs font-medium text-foreground">{label}</span>
             <div className="flex gap-3">
@@ -159,7 +155,6 @@ function FilterChip({
             </div>
           </div>
 
-          {/* Options list */}
           <div className="max-h-60 overflow-y-auto px-2 py-2">
             {options.length === 0 && (
               <p className="px-1 py-1 font-sans text-xs text-muted-foreground">no options yet</p>
@@ -175,7 +170,6 @@ function FilterChip({
                     : "text-foreground hover:bg-border/50"
                 )}
               >
-                {/* Checkbox */}
                 <span
                   className={cn(
                     "flex size-4 shrink-0 items-center justify-center rounded-none border",
@@ -279,7 +273,6 @@ function MiniReceipt({ receipt }: { receipt: SavedReceipt }) {
       className="mx-auto w-[280px] rounded-sm px-5 py-6 shadow-md"
       style={{ backgroundColor: "#FEFCF4" }}
     >
-      {/* Rating circle */}
       <div className="mb-3 flex justify-center">
         <div
           className="flex size-14 items-center justify-center rounded-full border-2"
@@ -291,46 +284,38 @@ function MiniReceipt({ receipt }: { receipt: SavedReceipt }) {
         </div>
       </div>
 
-      {/* Cafe name */}
       <p className="mb-3 break-words text-center text-xs font-medium" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
         {receipt.cafeName || "cafe"}
       </p>
 
-      {/* Drink name */}
       <h3 className="mb-3 break-words text-center text-2xl font-medium leading-tight" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
         {receipt.drinkName || "Beverage"}
       </h3>
 
-      {/* Customizations */}
       {customizations.length > 0 && (
         <p className="mb-3 break-words text-center text-sm font-medium" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
           {customizations.join(", ")}
         </p>
       )}
 
-      {/* Notes */}
       {receipt.comments?.trim() && (
         <p className="mb-3 break-words text-xs font-light" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
           Notes: {receipt.comments.trim()}
         </p>
       )}
 
-      {/* Location */}
       {receipt.location?.trim() && (
         <p className="break-words text-xs font-light" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
           {receipt.location.trim()}
         </p>
       )}
 
-      {/* Date/Time */}
       <p className="mb-3 text-xs font-light" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
         {receiptFormatDate(receipt.date)} {receiptFormatTime(receipt.time)}
       </p>
 
-      {/* Divider */}
       <div className="mb-3 border-t" style={{ borderColor: RECEIPT_TEXT_COLOR, opacity: 0.2 }} />
 
-      {/* Footer */}
       <p className="text-center text-xs font-normal" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
         Ranked with <span className="font-medium" style={IBM_PLEX}>drank</span>
       </p>
@@ -339,7 +324,7 @@ function MiniReceipt({ receipt }: { receipt: SavedReceipt }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Receipt detail modal (centered, matches share-step modal style)
+   Receipt detail modal
 ─────────────────────────────────────────────────────────────── */
 interface DetailSheetProps {
   receipt: SavedReceipt
@@ -357,7 +342,6 @@ function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
         className="flex w-full max-w-[340px] flex-col gap-4 rounded-md p-4 shadow-xl"
         style={{ backgroundColor: "oklch(0.958 0.012 85)" }}
       >
-        {/* Header text — matches share-step modal style */}
         <div className="text-center">
           <p className="font-sans text-sm text-foreground">
             {receipt.drinkName || "Beverage"}
@@ -367,12 +351,20 @@ function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
           )}
         </div>
 
-        {/* Scrollable receipt */}
+        {/* Scrollable content: saved canvas image if available, else DOM receipt */}
         <div className="max-h-[60vh] overflow-y-auto">
-          <MiniReceipt receipt={receipt} />
+          {receipt.savedCanvasDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={receipt.savedCanvasDataUrl}
+              alt={receipt.drinkName || "Saved receipt"}
+              className="mx-auto w-full max-w-[280px] rounded-sm shadow-md"
+            />
+          ) : (
+            <MiniReceipt receipt={receipt} />
+          )}
         </div>
 
-        {/* Action row */}
         <div className="flex gap-3">
           <Button
             size="lg"
@@ -458,24 +450,30 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onContextMenu={handleContextMenu}
-        className="flex items-center gap-3 py-4 text-left transition-colors hover:bg-border/30 w-full"
+        className="flex items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-border/30 w-full"
       >
         {/* Rank number */}
         <span className="w-5 shrink-0 font-mono text-xs text-muted-foreground">
           {idx + 1}
         </span>
 
-        {/* Thumbnail — taller */}
-        {receipt.thumbnailDataUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={receipt.thumbnailDataUrl}
-            alt={receipt.drinkName}
-            className="size-12 shrink-0 rounded-md object-cover"
-          />
-        ) : (
-          <CupPlaceholder className="size-12 shrink-0 rounded-md" />
-        )}
+        {/* Thumbnail */}
+        {(() => {
+          const thumb = receipt.bgRemovedImageDataUrl ?? receipt.thumbnailDataUrl
+          return thumb ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={thumb}
+              alt={receipt.drinkName}
+              className={cn(
+                "size-12 shrink-0 rounded-md",
+                receipt.bgRemovedImageDataUrl ? "object-contain" : "object-cover"
+              )}
+            />
+          ) : (
+            <CupPlaceholder className="size-12 shrink-0 rounded-md" />
+          )
+        })()}
 
         {/* Info */}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -489,7 +487,7 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
 
         {/* Rating badge */}
         <div
-          className="flex size-8 shrink-0 items-center justify-center rounded-full font-mono text-xs font-medium"
+          className="flex size-12 shrink-0 items-center justify-center rounded-full font-mono text-md font-medium"
           style={{ backgroundColor: getRatingColor(receipt.rating), color: "#473C23" }}
         >
           {receipt.rating || "—"}
@@ -538,6 +536,8 @@ export default function HistoryPage() {
   const [receipts, setReceipts] = useState<SavedReceipt[]>([])
   const [view, setView] = useState<"list" | "gallery">("list")
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [sortBy, setSortBy] = useState<ReceiptSortBy>("rating")
+  const [sortDir, setSortDir] = useState<ReceiptSortDir>("desc")
 
   // Filter state
   const [cafeFilter, setCafeFilter] = useState<Set<string>>(new Set())
@@ -549,8 +549,13 @@ export default function HistoryPage() {
 
   // Load receipts on mount
   useEffect(() => {
-    setReceipts(getReceipts())
+    setReceipts(getReceipts(sortBy, sortDir))
   }, [])
+
+  // Re-sort when sort settings change
+  useEffect(() => {
+    setReceipts(getReceipts(sortBy, sortDir))
+  }, [sortBy, sortDir])
 
   const cafeOptions = useMemo(() => getCafeOptions(), [receipts])
   const locationOptions = useMemo(() => getLocationOptions(), [receipts])
@@ -565,9 +570,9 @@ export default function HistoryPage() {
 
   const handleDelete = useCallback((id: string) => {
     deleteReceipt(id)
-    setReceipts(getReceipts())
+    setReceipts(getReceipts(sortBy, sortDir))
     setDetailReceipt(null)
-  }, [])
+  }, [sortBy, sortDir])
 
   const handleEdit = useCallback((receipt: SavedReceipt) => {
     sessionStorage.setItem("drank_edit_receipt", JSON.stringify(receipt))
@@ -578,45 +583,40 @@ export default function HistoryPage() {
 
   return (
     <div className="flex h-dvh bg-background">
-      {/* Nav drawer — mobile only */}
       <NavDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
       />
 
-      {/* Main */}
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Header — matches rank page exactly */}
         <header className="relative flex shrink-0 items-center justify-center px-4 pb-4 pt-4 md:px-6">
-        <div className="absolute left-4 md:hidden">
+          <div className="absolute left-4 md:hidden">
             <HamburgerButton onClick={() => setDrawerOpen(true)} />
-        </div>
+          </div>
 
-        <Link href="/" aria-label="drank — go to rank">
+          <Link href="/" aria-label="drank — go to rank">
             <Image
-            src="/logo.png"
-            alt="drank"
-            width={80}
-            height={24}
-            className="h-6 w-auto transition-opacity hover:opacity-70"
-            priority
+              src="/logo.png"
+              alt="drank"
+              width={80}
+              height={24}
+              className="h-6 w-auto transition-opacity hover:opacity-70"
+              priority
             />
-        </Link>
+          </Link>
 
-        <div className="absolute right-4 hidden md:block">
+          <div className="absolute right-4 hidden md:block">
             <DesktopNav />
-        </div>
+          </div>
         </header>
 
-        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[700px] px-4 pb-20 md:px-6">
-            {/* Stats */}
             <div className="mb-4">
               <StatsBar />
             </div>
 
-            {/* Toolbar: filters + view toggle */}
+            {/* Toolbar: filters + sort + view toggle */}
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex gap-2">
                 <FilterChip
@@ -660,28 +660,66 @@ export default function HistoryPage() {
                 />
               </div>
 
-              {/* View toggle */}
-              <div className="flex shrink-0 overflow-hidden rounded-lg border border-border bg-card">
+              {/* Sort + View toggles — right side */}
+              <div className="flex shrink-0 items-center gap-2">
+                {/* Sort toggle */}
+                <div className="flex overflow-hidden rounded-full border border-border bg-card">
+                  <button
+                    onClick={() => setSortBy("rating")}
+                    className={cn(
+                      "px-3 py-1.5 font-mono text-xs transition-colors",
+                      sortBy === "rating" ? "bg-[#D9D88A] text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    ranking
+                  </button>
+                  <button
+                    onClick={() => setSortBy("latest")}
+                    className={cn(
+                      "px-3 py-1.5 font-mono text-xs transition-colors",
+                      sortBy === "latest" ? "bg-[#D9D88A] text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    latest
+                  </button>
+                </div>
+
+                {/* Flip direction */}
                 <button
-                  onClick={() => setView("list")}
+                  onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")}
                   className={cn(
-                    "p-2 transition-colors",
-                    view === "list" ? "bg-[#E0DE96] text-foreground" : "text-muted-foreground hover:text-foreground"
+                    "flex items-center justify-center rounded-full border border-border bg-card p-1.5 transition-colors hover:text-foreground",
+                    sortDir === "asc" ? "text-foreground" : "text-muted-foreground"
                   )}
-                  aria-label="List view"
+                  aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}
+                  title={sortDir === "desc" ? "Sort ascending" : "Sort descending"}
                 >
-                  <LayoutList className="size-4" />
+                  <ArrowUpDown className={cn("size-3.5 transition-transform", sortDir === "asc" && "rotate-180")} />
                 </button>
-                <button
-                  onClick={() => setView("gallery")}
-                  className={cn(
-                    "p-2 transition-colors",
-                    view === "gallery" ? "bg-[#E0DE96] text-foreground" : "text-muted-foreground hover:text-foreground"
-                  )}
-                  aria-label="Gallery view"
-                >
-                  <LayoutGrid className="size-4" />
-                </button>
+
+                {/* View toggle */}
+                <div className="flex overflow-hidden rounded-full border border-border bg-card">
+                  <button
+                    onClick={() => setView("list")}
+                    className={cn(
+                      "p-1.5 transition-colors",
+                      view === "list" ? "bg-[#D9D88A] text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                    aria-label="List view"
+                  >
+                    <LayoutList className="size-4" />
+                  </button>
+                  <button
+                    onClick={() => setView("gallery")}
+                    className={cn(
+                      "p-1.5 transition-colors",
+                      view === "gallery" ? "bg-[#D9D88A] text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                    aria-label="Gallery view"
+                  >
+                    <LayoutGrid className="size-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -721,54 +759,56 @@ export default function HistoryPage() {
             {/* Gallery view */}
             {view === "gallery" && filteredReceipts.length > 0 && (
               <div className="grid grid-cols-2 gap-3">
-                {filteredReceipts.map((receipt) => (
-                  <button
-                    key={receipt.id}
-                    onClick={() => setDetailReceipt(receipt)}
-                    className="relative aspect-square overflow-hidden rounded-xl bg-border/30 transition-transform hover:scale-[0.98]"
-                  >
-                    {receipt.thumbnailDataUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={receipt.thumbnailDataUrl}
-                        alt={receipt.drinkName}
-                        className="absolute inset-0 h-full w-full object-cover"
-                      />
-                    ) : (
-                      <CupPlaceholder className="absolute inset-0 h-full w-full" />
-                    )}
-
-                    {/* Overlay gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-
-                    {/* Rating badge top-right */}
-                    <div
-                      className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full font-mono text-xs font-medium shadow"
-                      style={{ backgroundColor: getRatingColor(receipt.rating), color: "#473C23" }}
+                {filteredReceipts.map((receipt) => {
+                  const thumb = receipt.bgRemovedImageDataUrl ?? receipt.thumbnailDataUrl
+                  return (
+                    <button
+                      key={receipt.id}
+                      onClick={() => setDetailReceipt(receipt)}
+                      className="relative aspect-square overflow-hidden rounded-xl bg-border/30 transition-transform hover:scale-[0.98]"
                     >
-                      {receipt.rating || "—"}
-                    </div>
-
-                    {/* Drink name bottom */}
-                    <div className="absolute bottom-0 left-0 right-0 px-2 py-2">
-                      <p className="truncate font-mono text-xs font-medium text-white">
-                        {receipt.drinkName || "Beverage"}
-                      </p>
-                      {receipt.cafeName && (
-                        <p className="truncate font-sans text-[10px] text-white/70">
-                          {receipt.cafeName}
-                        </p>
+                      {thumb ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={thumb}
+                          alt={receipt.drinkName}
+                          className={cn(
+                            "absolute inset-0 h-full w-full",
+                            receipt.bgRemovedImageDataUrl ? "object-contain p-3" : "object-cover"
+                          )}
+                        />
+                      ) : (
+                        <CupPlaceholder className="absolute inset-0 h-full w-full" />
                       )}
-                    </div>
-                  </button>
-                ))}
+
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+
+                      <div
+                        className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full font-mono text-xs font-medium shadow"
+                        style={{ backgroundColor: getRatingColor(receipt.rating), color: "#473C23" }}
+                      >
+                        {receipt.rating || "—"}
+                      </div>
+
+                      <div className="absolute bottom-0 left-0 right-0 px-2 py-2">
+                        <p className="truncate font-mono text-xs font-medium text-white">
+                          {receipt.drinkName || "Beverage"}
+                        </p>
+                        {receipt.cafeName && (
+                          <p className="truncate font-sans text-[10px] text-white/70">
+                            {receipt.cafeName}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
         </div>
       </main>
 
-      {/* Detail modal */}
       {detailReceipt && (
         <DetailSheet
           receipt={detailReceipt}

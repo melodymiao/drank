@@ -285,7 +285,21 @@ export function ShareStep({
     if (!url) return
 
     const isFirstSave = !hasSaved
-    updateReceipt(receiptId, { receiptStickers, storyStickers, showDrinkSticker })
+
+    // Priority: story+drinkSticker=2, story=1, receipt=0
+    const priority =
+      activeTab === "story" && showDrinkSticker ? 2
+      : activeTab === "story" ? 1
+      : 0
+
+    updateReceipt(receiptId, {
+      receiptStickers,
+      storyStickers,
+      showDrinkSticker,
+      savedCanvasDataUrl: url,
+      savedCanvasPriority: priority,
+      ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
+    })
     setHasSaved(true)
     const msg = isFirstSave ? "Saved to drank history" : "Drank history updated"
     setToastMessage(msg)
@@ -316,8 +330,8 @@ export function ShareStep({
     link.download = filename
     link.href = url
     link.click()
-  }, [activeTab, storyUrl, receiptUrl, hasSaved, receiptId, receiptStickers, storyStickers, showDrinkSticker, data.drinkName])
-
+  }, [activeTab, storyUrl, receiptUrl, hasSaved, receiptId, receiptStickers, storyStickers, showDrinkSticker, bgRemovedImage, data.drinkName])
+  
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
