@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import type { ReceiptData, StickerItem } from "@/components/decorate-step"
 import { removeBackground } from "@imgly/background-removal"
 import { ERRORS, pickError } from "@/lib/errors"
-import { updateReceipt, type StoredSticker } from "@/lib/receipt-store"
+import { updateReceipt, resizeImage, type StoredSticker } from "@/lib/receipt-store"
 
 /* ============================================================
    Sticker Definitions
@@ -389,8 +389,16 @@ export function ShareStep({
 
       onImageUpload(dataUrl)
       setActiveTab("story")
+
+      // Persist the newly uploaded image to the store so it survives edit/reload
+      Promise.all([
+        resizeImage(dataUrl, 800, 0.82),
+        resizeImage(dataUrl, 80, 0.7),
+      ]).then(([imageDataUrl, thumbnailDataUrl]) => {
+        updateReceipt(receiptId, { imageDataUrl, thumbnailDataUrl })
+      }).catch(() => { /* non-critical */ })
     },
-    [onImageUpload]
+    [onImageUpload, receiptId]
   )
 
   const handleAddSticker = useCallback((def: StickerDef) => {

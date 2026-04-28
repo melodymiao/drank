@@ -309,6 +309,16 @@ function MiniReceipt({ receipt }: { receipt: SavedReceipt }) {
         </p>
       )}
 
+      {/* Drink sticker — shown when bg-removed image was saved */}
+      {receipt.showDrinkSticker && receipt.bgRemovedImageDataUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={receipt.bgRemovedImageDataUrl}
+          alt="drink"
+          className="mx-auto my-3 block max-h-32 w-auto object-contain"
+        />
+      )}
+
       {/* Notes */}
       {receipt.comments?.trim() && (
         <p className="mb-3 break-words text-xs font-light" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
@@ -368,18 +378,9 @@ function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
           )}
         </div>
 
-        {/* Scrollable content: saved canvas image if available, else DOM receipt */}
+        {/* Scrollable content: always render the DOM receipt (with drink sticker if saved) */}
         <div className="max-h-[60vh] overflow-y-auto">
-          {receipt.savedCanvasDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={receipt.savedCanvasDataUrl}
-              alt={receipt.drinkName || "Saved receipt"}
-              className="mx-auto w-full max-w-[280px] rounded-sm shadow-md"
-            />
-          ) : (
-            <MiniReceipt receipt={receipt} />
-          )}
+          <MiniReceipt receipt={receipt} />
         </div>
 
         {/* Action row */}
