@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { LayoutList, LayoutGrid, ChevronDown, Trash2, Pencil, ArrowUpDown } from "lucide-react"
+import { ChevronDown, Trash2, Pencil, ArrowUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getReceipts,
@@ -127,12 +127,12 @@ function FilterChip({
       <button
         onClick={onClick}
         className={cn(
-          "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-xs transition-colors",
-          active || isOpen
-            ? "bg-[#E0DE96] text-foreground"
-            : "border border-border bg-card text-foreground hover:bg-border/60"
+            "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-3 py-1.5 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
+            active || isOpen
+            ? "border-green-light bg-green-light text-foreground"
+            : "border-green-light bg-green-light/25 text-green-dark"
         )}
-      >
+        >
         {label}
         {count !== undefined && count > 0 && (
           <span className="flex size-4 items-center justify-center rounded-full bg-foreground/15 text-[9px]">
@@ -170,10 +170,10 @@ function FilterChip({
                 key={name}
                 onClick={() => onToggle(name)}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-2 py-3 font-mono text-xs transition-colors",
+                  "flex w-full items-center gap-2 rounded-lg px-2 py-3 font-sans text-xs transition-colors",
                   selected.has(name)
                     ? "bg-green-light text-foreground"
-                    : "text-foreground hover:bg-border/50"
+                    : "text-foreground hover:bg-green-light/50"
                 )}
               >
                 {/* Checkbox */}
@@ -468,7 +468,7 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onContextMenu={handleContextMenu}
-        className="flex items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-border/30 w-full"
+        className="flex items-center gap-3 px-4 py-4 text-left transition-colors rounded-md hover:bg-border/30 w-full"
       >
         {/* Rank number */}
         <span className="w-5 shrink-0 font-mono text-xs text-muted-foreground">
@@ -484,21 +484,21 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
               src={thumb}
               alt={receipt.drinkName}
               className={cn(
-                "size-12 shrink-0 rounded-md",
+                "size-20 shrink-0",
                 receipt.bgRemovedImageDataUrl ? "object-contain" : "object-cover"
               )}
             />
           ) : (
-            <CupPlaceholder className="size-12 shrink-0 rounded-md" />
+            <CupPlaceholder className="size-20 shrink-0 rounded-md" />
           )
         })()}
 
         {/* Info */}
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="truncate font-mono text-sm font-medium text-foreground">
+          <span className="truncate font-mono text-md font-medium text-foreground">
             {receipt.drinkName || "Beverage"}
           </span>
-          <span className="truncate font-sans text-xs text-muted-foreground">
+          <span className="truncate font-sans text-sm text-muted-foreground">
             {[receipt.cafeName, receipt.location].filter(Boolean).join(" · ")}
           </span>
         </div>
@@ -639,115 +639,88 @@ export default function HistoryPage() {
               <StatsBar />
             </div>
 
-            {/* Toolbar: filters + sort + view toggle */}
-            {/* Mobile: two rows stacked. Desktop: single row space-between. */}
-            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
-              {/* Row 1: Filter chips — left aligned */}
-              <div className="flex gap-2 overflow-x-auto pb-0.5 md:overflow-x-visible">
-                <FilterChip
-                  label="all"
-                  active={activeFilterCount === 0}
-                  onClick={() => { setCafeFilter(new Set()); setLocationFilter(new Set()); setOpenFilter(null) }}
-                />
-                <FilterChip
-                  label="café"
-                  active={cafeFilter.size > 0}
-                  count={cafeFilter.size}
-                  options={cafeOptions}
-                  selected={cafeFilter}
-                  onToggle={(name) => setCafeFilter((prev) => {
-                    const next = new Set(prev)
-                    next.has(name) ? next.delete(name) : next.add(name)
-                    return next
-                  })}
-                  onSelectAll={() => setCafeFilter(new Set(cafeOptions.map((o) => o.name)))}
-                  onClear={() => setCafeFilter(new Set())}
-                  isOpen={openFilter === "cafe"}
-                  onClose={() => setOpenFilter(null)}
-                  onClick={() => setOpenFilter(openFilter === "cafe" ? null : "cafe")}
-                />
-                <FilterChip
-                  label="location"
-                  active={locationFilter.size > 0}
-                  count={locationFilter.size}
-                  options={locationOptions}
-                  selected={locationFilter}
-                  onToggle={(name) => setLocationFilter((prev) => {
-                    const next = new Set(prev)
-                    next.has(name) ? next.delete(name) : next.add(name)
-                    return next
-                  })}
-                  onSelectAll={() => setLocationFilter(new Set(locationOptions.map((o) => o.name)))}
-                  onClear={() => setLocationFilter(new Set())}
-                  isOpen={openFilter === "location"}
-                  onClose={() => setOpenFilter(null)}
-                  onClick={() => setOpenFilter(openFilter === "location" ? null : "location")}
-                />
-              </div>
+            {/* Toolbar: filters on row 1, sort+view controls on row 2. Desktop: single row. */}
+<div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
 
-              {/* Row 2: Sort + View toggles — left aligned on mobile, right aligned on desktop */}
-              <div className="flex shrink-0 items-center gap-2">
-                {/* Sort toggle */}
-                <div className="flex overflow-hidden rounded-full border border-border bg-card">
-                  <button
-                    onClick={() => setSortBy("rating")}
-                    className={cn(
-                      "px-3 py-1.5 font-mono text-xs transition-colors",
-                      sortBy === "rating" ? "bg-[#D9D88A] text-foreground" : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    ranking
-                  </button>
-                  <button
-                    onClick={() => setSortBy("latest")}
-                    className={cn(
-                      "px-3 py-1.5 font-mono text-xs transition-colors",
-                      sortBy === "latest" ? "bg-[#D9D88A] text-foreground" : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    latest
-                  </button>
-                </div>
+{/* Row 1 — filter chips */}
+<div className="flex items-center gap-2 overflow-x-auto pb-0.5 md:overflow-x-visible">
+  <FilterChip
+    label="all"
+    active={activeFilterCount === 0}
+    onClick={() => { setCafeFilter(new Set()); setLocationFilter(new Set()); setOpenFilter(null) }}
+  />
+  <FilterChip
+    label="café"
+    active={cafeFilter.size > 0}
+    count={cafeFilter.size}
+    options={cafeOptions}
+    selected={cafeFilter}
+    onToggle={(name) => setCafeFilter((prev) => {
+      const next = new Set(prev)
+      next.has(name) ? next.delete(name) : next.add(name)
+      return next
+    })}
+    onSelectAll={() => setCafeFilter(new Set(cafeOptions.map((o) => o.name)))}
+    onClear={() => setCafeFilter(new Set())}
+    isOpen={openFilter === "cafe"}
+    onClose={() => setOpenFilter(null)}
+    onClick={() => setOpenFilter(openFilter === "cafe" ? null : "cafe")}
+  />
+  <FilterChip
+    label="location"
+    active={locationFilter.size > 0}
+    count={locationFilter.size}
+    options={locationOptions}
+    selected={locationFilter}
+    onToggle={(name) => setLocationFilter((prev) => {
+      const next = new Set(prev)
+      next.has(name) ? next.delete(name) : next.add(name)
+      return next
+    })}
+    onSelectAll={() => setLocationFilter(new Set(locationOptions.map((o) => o.name)))}
+    onClear={() => setLocationFilter(new Set())}
+    isOpen={openFilter === "location"}
+    onClose={() => setOpenFilter(null)}
+    onClick={() => setOpenFilter(openFilter === "location" ? null : "location")}
+  />
+</div>
 
-                {/* Flip direction */}
-                <button
-                  onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")}
-                  className={cn(
-                    "flex items-center justify-center rounded-full border border-border bg-card p-1.5 transition-colors hover:text-foreground",
-                    sortDir === "asc" ? "text-foreground" : "text-muted-foreground"
-                  )}
-                  aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}
-                  title={sortDir === "desc" ? "Sort ascending" : "Sort descending"}
-                >
-                  <ArrowUpDown className={cn("size-3.5 transition-transform", sortDir === "asc" && "rotate-180")} />
-                </button>
+{/* Row 2 — sort + view toggles + flip */}
+<div className="flex items-center gap-2">
 
-                {/* View toggle */}
-                <div className="flex overflow-hidden rounded-full border border-border bg-card">
-                  <button
-                    onClick={() => setView("list")}
-                    className={cn(
-                      "p-1.5 transition-colors",
-                      view === "list" ? "bg-[#D9D88A] text-foreground" : "text-muted-foreground hover:text-foreground"
-                    )}
-                    aria-label="List view"
-                  >
-                    <LayoutList className="size-4" />
-                  </button>
-                  <button
-                    onClick={() => setView("gallery")}
-                    className={cn(
-                      "p-1.5 transition-colors",
-                      view === "gallery" ? "bg-[#D9D88A] text-foreground" : "text-muted-foreground hover:text-foreground"
-                    )}
-                    aria-label="Gallery view"
-                  >
-                    <LayoutGrid className="size-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
+  {/* Sort toggle */}
+<div className="flex rounded-xl border-2 border-border bg-transparent p-1">
+  <button
+    onClick={() => setSortBy("rating")}
+    className={cn(
+      "rounded-md px-3 py-1.5 font-mono text-xs transition-colors",
+      sortBy === "rating" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground"
+    )}
+  >
+    ranking
+  </button>
+  <button
+    onClick={() => setSortBy("latest")}
+    className={cn(
+      "rounded-md px-3 py-1.5 font-mono text-xs transition-colors",
+      sortBy === "latest" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground"
+    )}
+  >
+    latest
+  </button>
+</div>
 
+  {/* Flip sort direction — green text link, no button chrome */}
+  <button
+    onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")}
+    className="flex items-center gap-1 font-sans text-sm text-green-dark transition-opacity hover:opacity-70"
+    aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}
+  >
+    <ArrowUpDown className="size-3.5" />
+  </button>
+
+</div>
+</div>
             {/* Empty state */}
             {filteredReceipts.length === 0 && (
               <div className="flex flex-col items-center gap-3 py-16 text-center">
@@ -778,59 +751,6 @@ export default function HistoryPage() {
                     onDelete={() => handleDelete(receipt.id)}
                   />
                 ))}
-              </div>
-            )}
-
-            {/* Gallery view */}
-            {view === "gallery" && filteredReceipts.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {filteredReceipts.map((receipt) => {
-                  const thumb = receipt.bgRemovedImageDataUrl ?? receipt.thumbnailDataUrl
-                  return (
-                    <button
-                      key={receipt.id}
-                      onClick={() => setDetailReceipt(receipt)}
-                      className="relative aspect-square overflow-hidden rounded-xl bg-border/30 transition-transform hover:scale-[0.98]"
-                    >
-                      {thumb ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={thumb}
-                          alt={receipt.drinkName}
-                          className={cn(
-                            "absolute inset-0 h-full w-full",
-                            receipt.bgRemovedImageDataUrl ? "object-contain p-3" : "object-cover"
-                          )}
-                        />
-                      ) : (
-                        <CupPlaceholder className="absolute inset-0 h-full w-full" />
-                      )}
-
-                      {/* Overlay gradient */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-
-                      {/* Rating badge top-right */}
-                      <div
-                        className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full font-mono text-xs font-medium shadow"
-                        style={{ backgroundColor: getRatingColor(receipt.rating), color: "#473C23" }}
-                      >
-                        {receipt.rating || "—"}
-                      </div>
-
-                      {/* Drink name bottom */}
-                      <div className="absolute bottom-0 left-0 right-0 px-2 py-2">
-                        <p className="truncate font-mono text-xs font-medium text-white">
-                          {receipt.drinkName || "Beverage"}
-                        </p>
-                        {receipt.cafeName && (
-                          <p className="truncate font-sans text-[10px] text-white/70">
-                            {receipt.cafeName}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
               </div>
             )}
           </div>

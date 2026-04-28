@@ -24,7 +24,7 @@ const defaultReceiptData: ReceiptData = {
   iceLevel: "",
   otherIceLevel: "",
   sugarLevel: "",
-  otherSugarLevel: "",
+  otherSugarLevel: "", 
   milk: "",
   otherMilk: "",
   toppings: [],
