@@ -145,7 +145,7 @@ function checkStorageCapacity(): void {
 ───────────────────────────────────────────────────────────── */
 
 /**
- * Resizes a data URL to a max dimension, returning a new JPEG data URL.
+ * Resizes a data URL to a max width, returning a JPEG data URL.
  * Returns null if the input is null or resizing fails.
  */
 export async function resizeImage(
@@ -167,6 +167,35 @@ export async function resizeImage(
       if (!ctx) { resolve(null); return }
       ctx.drawImage(img, 0, 0, w, h)
       resolve(canvas.toDataURL("image/jpeg", quality))
+    }
+    img.onerror = () => resolve(null)
+    img.src = dataUrl
+  })
+}
+
+/**
+ * Resizes a data URL to a max width, returning a PNG data URL.
+ * Use for images that require transparency (e.g. bg-removed drink sticker).
+ * Returns null if the input is null or resizing fails.
+ */
+export async function resizeImagePng(
+  dataUrl: string,
+  maxWidth: number
+): Promise<string | null> {
+  if (!dataUrl) return null
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width)
+      const w = Math.round(img.width * scale)
+      const h = Math.round(img.height * scale)
+      const canvas = document.createElement("canvas")
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext("2d")
+      if (!ctx) { resolve(null); return }
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL("image/png"))
     }
     img.onerror = () => resolve(null)
     img.src = dataUrl

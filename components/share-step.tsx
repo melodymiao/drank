@@ -296,39 +296,37 @@ export function ShareStep({
       : activeTab === "story" ? 1
       : 0
 
-    // Resize bgRemovedImage before storing to keep localStorage usage manageable.
-    // The raw bg-removed PNG can be several MB; we cap it at 400px wide.
-    let bgRemovedToStore: string | null = null
-    if (bgRemovedImage) {
-      try {
-        const { resizeImage } = await import("@/lib/receipt-store")
-        bgRemovedToStore = await resizeImage(bgRemovedImage, 400, 0.85)
-      } catch {
-        bgRemovedToStore = null
-      }
-    }
+    // Compress both images before storing — the story canvas is 1080×1920 PNG
+    // which is 3–5 MB raw. We shrink it to a display-sized JPEG for history.
+    // The bg-removed sticker is PNG-with-transparency so it needs resizeImagePng.
+    const { resizeImage, resizeImagePng } = await import("@/lib/receipt-store")
+
+    const [canvasToStore, bgRemovedToStore] = await Promise.all([
+      resizeImage(url, 540, 0.82),
+      bgRemovedImage ? resizeImagePng(bgRemovedImage, 300) : Promise.resolve(null),
+    ])
 
     try {
       updateReceipt(receiptId, {
         receiptStickers,
         storyStickers,
         showDrinkSticker,
-        savedCanvasDataUrl: url,
+        savedCanvasDataUrl: canvasToStore ?? url,
         savedCanvasPriority: priority,
         ...(bgRemovedToStore ? { bgRemovedImageDataUrl: bgRemovedToStore } : {}),
       })
     } catch {
-      // QuotaExceededError — try again without the bg-removed image
+      // QuotaExceededError — retry without the bg-removed thumbnail
       try {
         updateReceipt(receiptId, {
           receiptStickers,
           storyStickers,
           showDrinkSticker,
-          savedCanvasDataUrl: url,
+          savedCanvasDataUrl: canvasToStore ?? url,
           savedCanvasPriority: priority,
         })
       } catch {
-        // Non-critical — history will just be missing this update
+        // Non-critical — history will be missing this update
       }
     }
 
@@ -340,9 +338,6 @@ export function ShareStep({
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 
     if (isMobile && navigator.canShare) {
-      // Convert data URL to blob synchronously-ish before sharing.
-      // We use fetch() on the data URL which works without breaking the gesture
-      // chain on modern mobile browsers when it's a data: URL (not a remote URL).
       try {
         const res = await fetch(url)
         const blob = await res.blob()
