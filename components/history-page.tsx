@@ -108,23 +108,50 @@ function FilterChip({
   isOpen,
   onClose,
 }: FilterChipProps) {
-  const wrapperRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
 
-  // Close on outside click
+  // Position the dropdown via fixed coords so it escapes overflow-x-auto clipping
+  useEffect(() => {
+    if (!isOpen || !buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const panelWidth = 288 // w-72
+    // Clamp left edge so it doesn't overflow the right of the viewport
+    const left = Math.min(rect.left, window.innerWidth - panelWidth - 8)
+    setDropdownStyle({
+      position: "fixed",
+      top: rect.bottom + 6,
+      left: Math.max(8, left),
+      width: panelWidth,
+      zIndex: 9999,
+    })
+  }, [isOpen])
+
+  // Close on outside click/touch
   useEffect(() => {
     if (!isOpen) return
-    function handleClick(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
-        onClose?.()
-      }
+    function handlePointer(e: MouseEvent | TouchEvent) {
+      const target = e instanceof TouchEvent ? e.touches[0]?.target : (e.target as Node)
+      if (!target) return
+      if (
+        buttonRef.current?.contains(target as Node) ||
+        dropdownRef.current?.contains(target as Node)
+      ) return
+      onClose?.()
     }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
+    document.addEventListener("mousedown", handlePointer)
+    document.addEventListener("touchstart", handlePointer)
+    return () => {
+      document.removeEventListener("mousedown", handlePointer)
+      document.removeEventListener("touchstart", handlePointer)
+    }
   }, [isOpen, onClose])
 
   return (
-    <div ref={wrapperRef} className="relative shrink-0">
+    <div className="relative shrink-0">
       <button
+        ref={buttonRef}
         onClick={onClick}
         className={cn(
             "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-3 py-1.5 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
@@ -144,9 +171,13 @@ function FilterChip({
         )}
       </button>
 
-      {/* Dropdown panel */}
+      {/* Dropdown panel — rendered with fixed positioning to escape overflow clipping */}
       {isOpen && options && selected && onToggle && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-border bg-card shadow-lg">
+        <div
+          ref={dropdownRef}
+          style={dropdownStyle}
+          className="rounded-xl border border-border bg-card shadow-lg"
+        >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
             <span className="font-mono text-xs font-medium text-foreground">{label}</span>
