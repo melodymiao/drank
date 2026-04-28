@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button"
    Helpers
 ─────────────────────────────────────────────────────────────── */
 
+
 function getRatingColor(rating: string): string {
   const n = parseFloat(rating)
   if (isNaN(n)) return "#E0DE96"
@@ -65,6 +66,7 @@ function StatsBar() {
   ]
 
   return (
+    // On mobile: overflow-x-auto scroll. On desktop: flex with each card flex-1 to fill the width.
     <div className="flex gap-3 overflow-x-auto pb-1 md:overflow-x-visible">
       {items.map(({ label, value }) => (
         <div key={label} className="flex shrink-0 flex-col items-center rounded-xl border border-border bg-card px-4 py-6 md:flex-1 md:shrink">
@@ -108,6 +110,7 @@ function FilterChip({
 }: FilterChipProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
 
+  // Close on outside click
   useEffect(() => {
     if (!isOpen) return
     function handleClick(e: MouseEvent) {
@@ -141,8 +144,10 @@ function FilterChip({
         )}
       </button>
 
+      {/* Dropdown panel */}
       {isOpen && options && selected && onToggle && (
         <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-border bg-card shadow-lg">
+          {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
             <span className="font-mono text-xs font-medium text-foreground">{label}</span>
             <div className="flex gap-3">
@@ -155,6 +160,7 @@ function FilterChip({
             </div>
           </div>
 
+          {/* Options list */}
           <div className="max-h-60 overflow-y-auto px-2 py-2">
             {options.length === 0 && (
               <p className="px-1 py-1 font-sans text-xs text-muted-foreground">no options yet</p>
@@ -170,6 +176,7 @@ function FilterChip({
                     : "text-foreground hover:bg-border/50"
                 )}
               >
+                {/* Checkbox */}
                 <span
                   className={cn(
                     "flex size-4 shrink-0 items-center justify-center rounded-none border",
@@ -273,6 +280,7 @@ function MiniReceipt({ receipt }: { receipt: SavedReceipt }) {
       className="mx-auto w-[280px] rounded-sm px-5 py-6 shadow-md"
       style={{ backgroundColor: "#FEFCF4" }}
     >
+      {/* Rating circle */}
       <div className="mb-3 flex justify-center">
         <div
           className="flex size-14 items-center justify-center rounded-full border-2"
@@ -284,38 +292,46 @@ function MiniReceipt({ receipt }: { receipt: SavedReceipt }) {
         </div>
       </div>
 
+      {/* Cafe name */}
       <p className="mb-3 break-words text-center text-xs font-medium" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
         {receipt.cafeName || "cafe"}
       </p>
 
+      {/* Drink name */}
       <h3 className="mb-3 break-words text-center text-2xl font-medium leading-tight" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
         {receipt.drinkName || "Beverage"}
       </h3>
 
+      {/* Customizations */}
       {customizations.length > 0 && (
         <p className="mb-3 break-words text-center text-sm font-medium" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
           {customizations.join(", ")}
         </p>
       )}
 
+      {/* Notes */}
       {receipt.comments?.trim() && (
         <p className="mb-3 break-words text-xs font-light" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
           Notes: {receipt.comments.trim()}
         </p>
       )}
 
+      {/* Location */}
       {receipt.location?.trim() && (
         <p className="break-words text-xs font-light" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
           {receipt.location.trim()}
         </p>
       )}
 
+      {/* Date/Time */}
       <p className="mb-3 text-xs font-light" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
         {receiptFormatDate(receipt.date)} {receiptFormatTime(receipt.time)}
       </p>
 
+      {/* Divider */}
       <div className="mb-3 border-t" style={{ borderColor: RECEIPT_TEXT_COLOR, opacity: 0.2 }} />
 
+      {/* Footer */}
       <p className="text-center text-xs font-normal" style={{ ...IBM_PLEX, color: RECEIPT_TEXT_COLOR }}>
         Ranked with <span className="font-medium" style={IBM_PLEX}>drank</span>
       </p>
@@ -324,7 +340,7 @@ function MiniReceipt({ receipt }: { receipt: SavedReceipt }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Receipt detail modal
+   Receipt detail modal (centered, matches share-step modal style)
 ─────────────────────────────────────────────────────────────── */
 interface DetailSheetProps {
   receipt: SavedReceipt
@@ -342,6 +358,7 @@ function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
         className="flex w-full max-w-[340px] flex-col gap-4 rounded-md p-4 shadow-xl"
         style={{ backgroundColor: "oklch(0.958 0.012 85)" }}
       >
+        {/* Header text — matches share-step modal style */}
         <div className="text-center">
           <p className="font-sans text-sm text-foreground">
             {receipt.drinkName || "Beverage"}
@@ -365,6 +382,7 @@ function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
           )}
         </div>
 
+        {/* Action row */}
         <div className="flex gap-3">
           <Button
             size="lg"
@@ -457,7 +475,7 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
           {idx + 1}
         </span>
 
-        {/* Thumbnail */}
+        {/* Thumbnail — taller */}
         {(() => {
           const thumb = receipt.bgRemovedImageDataUrl ?? receipt.thumbnailDataUrl
           return thumb ? (
@@ -583,42 +601,49 @@ export default function HistoryPage() {
 
   return (
     <div className="flex h-dvh bg-background">
+      {/* Nav drawer — mobile only */}
       <NavDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
       />
 
+      {/* Main */}
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Header — matches rank page exactly */}
         <header className="relative flex shrink-0 items-center justify-center px-4 pb-4 pt-4 md:px-6">
-          <div className="absolute left-4 md:hidden">
+        <div className="absolute left-4 md:hidden">
             <HamburgerButton onClick={() => setDrawerOpen(true)} />
-          </div>
+        </div>
 
-          <Link href="/" aria-label="drank — go to rank">
+        <Link href="/" aria-label="drank — go to rank">
             <Image
-              src="/logo.png"
-              alt="drank"
-              width={80}
-              height={24}
-              className="h-6 w-auto transition-opacity hover:opacity-70"
-              priority
+            src="/logo.png"
+            alt="drank"
+            width={80}
+            height={24}
+            className="h-6 w-auto transition-opacity hover:opacity-70"
+            priority
             />
-          </Link>
+        </Link>
 
-          <div className="absolute right-4 hidden md:block">
+        <div className="absolute right-4 hidden md:block">
             <DesktopNav />
-          </div>
+        </div>
         </header>
 
+        {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[700px] px-4 pb-20 md:px-6">
+            {/* Stats */}
             <div className="mb-4">
               <StatsBar />
             </div>
 
             {/* Toolbar: filters + sort + view toggle */}
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="flex gap-2">
+            {/* Mobile: two rows stacked. Desktop: single row space-between. */}
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
+              {/* Row 1: Filter chips — left aligned */}
+              <div className="flex gap-2 overflow-x-auto pb-0.5 md:overflow-x-visible">
                 <FilterChip
                   label="all"
                   active={activeFilterCount === 0}
@@ -660,7 +685,7 @@ export default function HistoryPage() {
                 />
               </div>
 
-              {/* Sort + View toggles — right side */}
+              {/* Row 2: Sort + View toggles — left aligned on mobile, right aligned on desktop */}
               <div className="flex shrink-0 items-center gap-2">
                 {/* Sort toggle */}
                 <div className="flex overflow-hidden rounded-full border border-border bg-card">
@@ -781,8 +806,10 @@ export default function HistoryPage() {
                         <CupPlaceholder className="absolute inset-0 h-full w-full" />
                       )}
 
+                      {/* Overlay gradient */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
 
+                      {/* Rating badge top-right */}
                       <div
                         className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full font-mono text-xs font-medium shadow"
                         style={{ backgroundColor: getRatingColor(receipt.rating), color: "#473C23" }}
@@ -790,6 +817,7 @@ export default function HistoryPage() {
                         {receipt.rating || "—"}
                       </div>
 
+                      {/* Drink name bottom */}
                       <div className="absolute bottom-0 left-0 right-0 px-2 py-2">
                         <p className="truncate font-mono text-xs font-medium text-white">
                           {receipt.drinkName || "Beverage"}
@@ -809,6 +837,7 @@ export default function HistoryPage() {
         </div>
       </main>
 
+      {/* Detail modal */}
       {detailReceipt && (
         <DetailSheet
           receipt={detailReceipt}

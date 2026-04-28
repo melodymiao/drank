@@ -285,6 +285,10 @@ export function ShareStep({
     if (!url) return
 
     const isFirstSave = !hasSaved
+    setHasSaved(true)
+    const msg = isFirstSave ? "Saved to drank history" : "Drank history updated"
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3000)
 
     // Priority: story+drinkSticker=2, story=1, receipt=0
     const priority =
@@ -292,18 +296,41 @@ export function ShareStep({
       : activeTab === "story" ? 1
       : 0
 
-    updateReceipt(receiptId, {
-      receiptStickers,
-      storyStickers,
-      showDrinkSticker,
-      savedCanvasDataUrl: url,
-      savedCanvasPriority: priority,
-      ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
-    })
-    setHasSaved(true)
-    const msg = isFirstSave ? "Saved to drank history" : "Drank history updated"
-    setToastMessage(msg)
-    setTimeout(() => setToastMessage(null), 3000)
+    // Resize bgRemovedImage before storing to keep localStorage usage manageable.
+    // The raw bg-removed PNG can be several MB; we cap it at 400px wide.
+    let bgRemovedToStore: string | null = null
+    if (bgRemovedImage) {
+      try {
+        const { resizeImage } = await import("@/lib/receipt-store")
+        bgRemovedToStore = await resizeImage(bgRemovedImage, 400, 0.85)
+      } catch {
+        bgRemovedToStore = null
+      }
+    }
+
+    try {
+      updateReceipt(receiptId, {
+        receiptStickers,
+        storyStickers,
+        showDrinkSticker,
+        savedCanvasDataUrl: url,
+        savedCanvasPriority: priority,
+        ...(bgRemovedToStore ? { bgRemovedImageDataUrl: bgRemovedToStore } : {}),
+      })
+    } catch {
+      // QuotaExceededError — try again without the bg-removed image
+      try {
+        updateReceipt(receiptId, {
+          receiptStickers,
+          storyStickers,
+          showDrinkSticker,
+          savedCanvasDataUrl: url,
+          savedCanvasPriority: priority,
+        })
+      } catch {
+        // Non-critical — history will just be missing this update
+      }
+    }
 
     const drinkSlug = data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"
     const filename = activeTab === "story"
@@ -312,17 +339,20 @@ export function ShareStep({
 
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 
-    if (isMobile) {
+    if (isMobile && navigator.canShare) {
+      // Convert data URL to blob synchronously-ish before sharing.
+      // We use fetch() on the data URL which works without breaking the gesture
+      // chain on modern mobile browsers when it's a data: URL (not a remote URL).
       try {
         const res = await fetch(url)
         const blob = await res.blob()
         const file = new File([blob], filename, { type: "image/png" })
-        if (navigator.canShare?.({ files: [file] })) {
+        if (navigator.canShare({ files: [file] })) {
           await navigator.share({ files: [file] })
           return
         }
       } catch {
-        // fall through to link download
+        // Share failed or was dismissed — fall through to link download
       }
     }
 
@@ -331,7 +361,7 @@ export function ShareStep({
     link.href = url
     link.click()
   }, [activeTab, storyUrl, receiptUrl, hasSaved, receiptId, receiptStickers, storyStickers, showDrinkSticker, bgRemovedImage, data.drinkName])
-  
+
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
@@ -516,17 +546,18 @@ export function ShareStep({
   )
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
-      {/* Toast notification */}
-      {toastMessage && (
-        <div
-          className="fixed left-4 top-4 z-50 rounded-lg bg-green-light px-4 py-2.5 shadow-lg"
-          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards" }}
-        >
-          <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
-        </div>
-      )}
+    <>
+    {/* Toast — rendered outside the scrolling div so it's never clipped on mobile */}
+    {toastMessage && (
+      <div
+        className="fixed left-4 top-4 z-[100] rounded-lg bg-green-light px-4 py-2.5 shadow-lg"
+        style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards" }}
+      >
+        <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
+      </div>
+    )}
 
+    <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
       {/* Hidden canvases for export */}
       <canvas ref={receiptCanvasRef} className="hidden" />
       <canvas ref={storyCanvasRef} className="hidden" />
@@ -692,6 +723,7 @@ export function ShareStep({
         </Button>
       </div>
     </div>
+    </>
   )
 }
 

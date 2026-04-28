@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -8,9 +8,9 @@ import { StepIndicator } from "@/components/step-indicator"
 import { UploadStep } from "@/components/upload-step"
 import { DecorateStep, type ReceiptData, type StickerItem } from "@/components/decorate-step"
 import { ShareStep } from "@/components/share-step"
-import { NavDrawer, HamburgerButton, DesktopNav } from "@/components/ui/nav-drawer"
+import { NavDrawer, HamburgerButton } from "@/components/ui/nav-drawer"
 import { Button } from "@/components/ui/button"
-import { saveReceipt } from "@/lib/receipt-store"
+import { saveReceipt, type SavedReceipt } from "@/lib/receipt-store"
 
 const defaultReceiptData: ReceiptData = {
   cafeName: "",
@@ -35,16 +35,54 @@ function generateId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+function savedReceiptToReceiptData(r: SavedReceipt): ReceiptData {
+  return {
+    cafeName: r.cafeName,
+    drinkName: r.drinkName,
+    rating: r.rating,
+    comments: r.comments,
+    location: r.location,
+    date: r.date,
+    time: r.time,
+    iceTemp: r.iceTemp,
+    iceLevel: r.iceLevel,
+    otherIceLevel: r.otherIceLevel,
+    sugarLevel: r.sugarLevel,
+    otherSugarLevel: r.otherSugarLevel,
+    milk: r.milk,
+    otherMilk: r.otherMilk,
+    toppings: r.toppings ?? [],
+    otherCustomizations: r.otherCustomizations,
+  }
+}
+
 export default function DrankApp() {
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [image, setImage] = useState<string | null>(null)
   const [receiptData, setReceiptData] = useState<ReceiptData>(defaultReceiptData)
   const [stickers, setStickers] = useState<StickerItem[]>([])
-  const [receiptId] = useState(() => generateId())
+  const [receiptId, setReceiptId] = useState(() => generateId())
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null)
+
+  // On mount: check if we're editing an existing receipt from history
+  useEffect(() => {
+    const raw = sessionStorage.getItem("drank_edit_receipt")
+    if (!raw) return
+    sessionStorage.removeItem("drank_edit_receipt")
+    try {
+      const saved: SavedReceipt = JSON.parse(raw)
+      setReceiptId(saved.id)
+      setReceiptData(savedReceiptToReceiptData(saved))
+      // Restore full-size photo if one was saved with this receipt
+      if (saved.imageDataUrl) setImage(saved.imageDataUrl)
+      setStep(2)
+    } catch {
+      // Malformed data — start fresh at step 1
+    }
+  }, [])
 
   const handleImageUpload = useCallback(
     (img: string, exifDate?: string, exifLocation?: string, exifCafe?: string) => {
@@ -73,6 +111,7 @@ export default function DrankApp() {
     setImage(null)
     setReceiptData(defaultReceiptData)
     setStickers([])
+    setReceiptId(generateId())
   }, [])
 
   // Returns true = navigate, false = block and show modal
@@ -118,31 +157,43 @@ export default function DrankApp() {
     }))
   }, [receiptData.date])
 
-
-
   return (
     <main className="relative flex h-dvh flex-col overflow-hidden bg-background">
       {/* ── Header ─────────────────────────────────────────────── */}
-      <header className="relative flex shrink-0 items-center justify-center px-4 pb-4 pt-4 md:px-6">
-      <div className="absolute left-4 md:hidden">
-        <HamburgerButton onClick={() => setDrawerOpen(true)} />
-      </div>
+      <header className="relative flex shrink-0 items-center justify-center px-4 pb-2 pt-4 md:px-6">
 
-      <Link href="/" aria-label="drank — go to rank">
-        <Image
-          src="/logo.png"
-          alt="drank"
-          width={80}
-          height={24}
-          className="h-6 w-auto transition-opacity hover:opacity-70"
-          priority
-        />
-      </Link>
+        {/* Mobile: hamburger left */}
+        <div className="absolute left-4 md:hidden">
+          <HamburgerButton onClick={() => setDrawerOpen(true)} />
+        </div>
 
-      <div className="absolute right-4 hidden md:block">
-        <DesktopNav />
-      </div>
-    </header>
+        {/* Logo — always centered, acts as home/rank link */}
+        <Link
+          href="/"
+          onClick={(e) => { if (step === 2) { e.preventDefault(); setLeaveTarget("/") } }}
+          aria-label="drank — go to rank"
+        >
+          <Image
+            src="/logo.png"
+            alt="drank"
+            width={80}
+            height={24}
+            className="h-6 w-auto transition-opacity hover:opacity-70"
+            priority
+          />
+        </Link>
+
+        {/* Desktop: history link right. Mobile: hidden (lives in drawer). */}
+        <div className="absolute right-4 hidden md:block">
+          <Link
+            href="/history"
+            onClick={(e) => { if (step === 2) { e.preventDefault(); setLeaveTarget("/history") } }}
+            className="font-sans text-sm text-green-dark transition-colors hover:opacity-70"
+          >
+            History
+          </Link>
+        </div>
+      </header>
 
       {/* Step indicator */}
       <div className="flex shrink-0 justify-center pb-2">
