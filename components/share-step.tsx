@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import type { ReceiptData, StickerItem } from "@/components/decorate-step"
 import { removeBackground } from "@imgly/background-removal"
 import { ERRORS, pickError } from "@/lib/errors"
-import { updateReceipt } from "@/lib/receipt-store"
+import { updateReceipt, type StoredSticker } from "@/lib/receipt-store"
 
 /* ============================================================
    Sticker Definitions
@@ -68,6 +68,11 @@ interface ShareStepProps {
   onReset: () => void
   onBack: () => void
   onImageUpload: (image: string, exifDate?: string) => void
+  /** Restored from history edit — pre-populate share step state */
+  initialReceiptStickers?: StoredSticker[]
+  initialStoryStickers?: StoredSticker[]
+  initialShowDrinkSticker?: boolean
+  initialBgRemovedImage?: string
 }
 
 interface SelectionRect {
@@ -91,6 +96,10 @@ export function ShareStep({
   onReset,
   onBack,
   onImageUpload,
+  initialReceiptStickers,
+  initialStoryStickers,
+  initialShowDrinkSticker,
+  initialBgRemovedImage,
 }: ShareStepProps) {
   const receiptCanvasRef = useRef<HTMLCanvasElement>(null)
   const storyCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -104,21 +113,26 @@ export function ShareStep({
   const [isPhotoConverting, setIsPhotoConverting] = useState(false)
 
   // Drink sticker state
-  const [showDrinkSticker, setShowDrinkSticker] = useState(false)
-  const [bgRemovedImage, setBgRemovedImage] = useState<string | null>(null)
+  const [showDrinkSticker, setShowDrinkSticker] = useState(initialShowDrinkSticker ?? false)
+  const [bgRemovedImage, setBgRemovedImage] = useState<string | null>(initialBgRemovedImage ?? null)
   const [isBgProcessing, setIsBgProcessing] = useState(false)
   const [bgError, setBgError] = useState<string | null>(null)
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null)
   const [showSelectionModal, setShowSelectionModal] = useState(false)
-  const [hasEverSelected, setHasEverSelected] = useState(false)
+  // If restoring from edit with an existing bg-removed image, treat it as already selected
+  const [hasEverSelected, setHasEverSelected] = useState(!!(initialBgRemovedImage))
 
   const [activeTab, setActiveTab] = useState<"story" | "receipt">(image ? "story" : "receipt")
   const [hasSaved, setHasSaved] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
-  // Separate sticker arrays for each canvas
-  const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>([])
-  const [storyStickers, setStoryStickers] = useState<PlacedSticker[]>([])
+  // Separate sticker arrays for each canvas — restored from edit if available
+  const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>(
+    () => (initialReceiptStickers ?? []) as PlacedSticker[]
+  )
+  const [storyStickers, setStoryStickers] = useState<PlacedSticker[]>(
+    () => (initialStoryStickers ?? []) as PlacedSticker[]
+  )
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null)
 
   const activeStickers = activeTab === "receipt" ? receiptStickers : storyStickers
@@ -285,50 +299,23 @@ export function ShareStep({
     if (!url) return
 
     const isFirstSave = !hasSaved
+
+    // Always store the receipt canvas as the history preview — 0 = no drink sticker, 1 = with drink sticker
+    const priority = showDrinkSticker ? 1 : 0
+
+    updateReceipt(receiptId, {
+      receiptStickers,
+      storyStickers,
+      showDrinkSticker,
+      // Always use the receipt canvas for the history preview, regardless of active tab
+      savedCanvasDataUrl: receiptUrl ?? url,
+      savedCanvasPriority: priority,
+      ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
+    })
     setHasSaved(true)
     const msg = isFirstSave ? "Saved to drank history" : "Drank history updated"
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3000)
-
-    // Priority: story+drinkSticker=2, story=1, receipt=0
-    const priority =
-      activeTab === "story" && showDrinkSticker ? 2
-      : activeTab === "story" ? 1
-      : 0
-
-    // Compress both images before storing — the story canvas is 1080×1920 PNG
-    // which is 3–5 MB raw. We shrink it to a display-sized JPEG for history.
-    // The bg-removed sticker is PNG-with-transparency so it needs resizeImagePng.
-    const { resizeImage, resizeImagePng } = await import("@/lib/receipt-store")
-
-    const [canvasToStore, bgRemovedToStore] = await Promise.all([
-      resizeImage(url, 540, 0.82),
-      bgRemovedImage ? resizeImagePng(bgRemovedImage, 300) : Promise.resolve(null),
-    ])
-
-    try {
-      updateReceipt(receiptId, {
-        receiptStickers,
-        storyStickers,
-        showDrinkSticker,
-        savedCanvasDataUrl: canvasToStore ?? url,
-        savedCanvasPriority: priority,
-        ...(bgRemovedToStore ? { bgRemovedImageDataUrl: bgRemovedToStore } : {}),
-      })
-    } catch {
-      // QuotaExceededError — retry without the bg-removed thumbnail
-      try {
-        updateReceipt(receiptId, {
-          receiptStickers,
-          storyStickers,
-          showDrinkSticker,
-          savedCanvasDataUrl: canvasToStore ?? url,
-          savedCanvasPriority: priority,
-        })
-      } catch {
-        // Non-critical — history will be missing this update
-      }
-    }
 
     const drinkSlug = data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"
     const filename = activeTab === "story"
@@ -337,17 +324,17 @@ export function ShareStep({
 
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
 
-    if (isMobile && navigator.canShare) {
+    if (isMobile) {
       try {
         const res = await fetch(url)
         const blob = await res.blob()
         const file = new File([blob], filename, { type: "image/png" })
-        if (navigator.canShare({ files: [file] })) {
+        if (navigator.canShare?.({ files: [file] })) {
           await navigator.share({ files: [file] })
           return
         }
       } catch {
-        // Share failed or was dismissed — fall through to link download
+        // fall through to link download
       }
     }
 
@@ -356,7 +343,7 @@ export function ShareStep({
     link.href = url
     link.click()
   }, [activeTab, storyUrl, receiptUrl, hasSaved, receiptId, receiptStickers, storyStickers, showDrinkSticker, bgRemovedImage, data.drinkName])
-
+  
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
@@ -541,18 +528,17 @@ export function ShareStep({
   )
 
   return (
-    <>
-    {/* Toast — rendered outside the scrolling div so it's never clipped on mobile */}
-    {toastMessage && (
-      <div
-        className="fixed left-4 top-4 z-[100] rounded-lg bg-green-light px-4 py-2.5 shadow-lg"
-        style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards" }}
-      >
-        <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
-      </div>
-    )}
-
     <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
+      {/* Toast notification */}
+      {toastMessage && (
+        <div
+          className="fixed left-4 top-4 z-50 rounded-lg bg-green-light px-4 py-2.5 shadow-lg"
+          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards" }}
+        >
+          <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
+        </div>
+      )}
+
       {/* Hidden canvases for export */}
       <canvas ref={receiptCanvasRef} className="hidden" />
       <canvas ref={storyCanvasRef} className="hidden" />
@@ -718,7 +704,6 @@ export function ShareStep({
         </Button>
       </div>
     </div>
-    </>
   )
 }
 

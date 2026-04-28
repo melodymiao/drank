@@ -145,7 +145,7 @@ function checkStorageCapacity(): void {
 ───────────────────────────────────────────────────────────── */
 
 /**
- * Resizes a data URL to a max width, returning a JPEG data URL.
+ * Resizes a data URL to a max dimension, returning a new JPEG data URL.
  * Returns null if the input is null or resizing fails.
  */
 export async function resizeImage(
@@ -167,35 +167,6 @@ export async function resizeImage(
       if (!ctx) { resolve(null); return }
       ctx.drawImage(img, 0, 0, w, h)
       resolve(canvas.toDataURL("image/jpeg", quality))
-    }
-    img.onerror = () => resolve(null)
-    img.src = dataUrl
-  })
-}
-
-/**
- * Resizes a data URL to a max width, returning a PNG data URL.
- * Use for images that require transparency (e.g. bg-removed drink sticker).
- * Returns null if the input is null or resizing fails.
- */
-export async function resizeImagePng(
-  dataUrl: string,
-  maxWidth: number
-): Promise<string | null> {
-  if (!dataUrl) return null
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      const scale = Math.min(1, maxWidth / img.width)
-      const w = Math.round(img.width * scale)
-      const h = Math.round(img.height * scale)
-      const canvas = document.createElement("canvas")
-      canvas.width = w
-      canvas.height = h
-      const ctx = canvas.getContext("2d")
-      if (!ctx) { resolve(null); return }
-      ctx.drawImage(img, 0, 0, w, h)
-      resolve(canvas.toDataURL("image/png"))
     }
     img.onerror = () => resolve(null)
     img.src = dataUrl
@@ -259,9 +230,8 @@ export async function saveReceipt(
  * Called when the user taps "Save Story" / "Save Receipt" on the share step.
  * Pass only the fields that changed — everything else is preserved.
  *
- * Special rule: savedCanvasDataUrl is only written when the incoming
- * savedCanvasPriority is >= the existing value, so the "most detailed"
- * version (story with drink sticker) is never overwritten by a simpler save.
+ * savedCanvasDataUrl always stores the receipt canvas (not story) so the
+ * history preview is always a receipt image. Last write wins — no priority gating.
  */
 export function updateReceipt(
   id: string,
@@ -274,24 +244,53 @@ export function updateReceipt(
     return
   }
 
-  const existing = all[idx]
-
-  // If the incoming update carries a canvas, only accept it when it is at least
-  // as "detailed" as what we already have stored.
-  const incomingPriority = updates.savedCanvasPriority ?? -1
-  const existingPriority = existing.savedCanvasPriority ?? -1
-  const canvasUpdates =
-    incomingPriority >= existingPriority
-      ? {}
-      : { savedCanvasDataUrl: existing.savedCanvasDataUrl, savedCanvasPriority: existingPriority }
-
   all[idx] = {
-    ...existing,
+    ...all[idx],
     ...updates,
-    ...canvasUpdates,
     updatedAt: new Date().toISOString(),
   }
   writeAll(all)
+}
+
+/**
+ * Re-saves a receipt after editing from history.
+ * Unlike saveReceipt, this preserves the existing imageDataUrl/thumbnailDataUrl
+ * without re-compressing them. bgRemovedImageDataUrl is also preserved unless
+ * a new value is explicitly passed.
+ *
+ * Returns the receipt id.
+ */
+export function saveReceiptEdit(
+  existing: SavedReceipt,
+  data: ReceiptData
+): string {
+  const all = readAll()
+  const idx = all.findIndex((r) => r.id === existing.id)
+
+  const updated: SavedReceipt = {
+    ...existing,
+    ...data,
+    // Media: preserve existing, do not re-compress
+    imageDataUrl: existing.imageDataUrl,
+    thumbnailDataUrl: existing.thumbnailDataUrl,
+    bgRemovedImageDataUrl: existing.bgRemovedImageDataUrl,
+    // Share state: reset stickers/canvas since the user is re-editing
+    receiptStickers: existing.receiptStickers,
+    storyStickers: existing.storyStickers,
+    showDrinkSticker: existing.showDrinkSticker,
+    savedCanvasDataUrl: existing.savedCanvasDataUrl,
+    savedCanvasPriority: existing.savedCanvasPriority,
+    updatedAt: new Date().toISOString(),
+  }
+
+  if (idx !== -1) {
+    all[idx] = updated
+  } else {
+    all.unshift(updated)
+  }
+
+  writeAll(all)
+  return existing.id
 }
 
 export type ReceiptSortBy = "rating" | "latest"
