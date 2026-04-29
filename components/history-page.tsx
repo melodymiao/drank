@@ -199,17 +199,25 @@ function MobileAllFilterChip({
           {/* Sub-menu: café */}
           {subMenu === "cafe" && (
             <div>
-              <div className="flex items-center border-b border-border px-3 py-2">
-                <button onClick={() => setSubMenu(null)} className="mr-2 text-muted-foreground hover:text-foreground">
-                  <ChevronDown className="size-3 rotate-90" />
+              <div className="flex items-center justify-between border-b border-border pl-1 pr-3 py-1">
+                <button onClick={() => setSubMenu(null)} className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-foreground">
+                  <ChevronDown className="size-4 rotate-90" />
                 </button>
                 <span className="font-mono text-xs font-medium">café</span>
-                <button
-                  onClick={() => { cafeOptions.forEach(o => onToggleCafe(o.name)) }}
-                  className="ml-auto font-sans text-[11px] text-green-dark underline"
-                >
-                  all
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { cafeOptions.forEach(o => onToggleCafe(o.name)) }}
+                    className="font-sans text-[11px] text-green-dark underline"
+                  >
+                    all
+                  </button>
+                  <button
+                    onClick={() => { cafeOptions.forEach(o => { if (cafeFilter.has(o.name)) onToggleCafe(o.name) }) }}
+                    className="font-sans text-[11px] text-muted-foreground underline"
+                  >
+                    clear
+                  </button>
+                </div>
               </div>
               <div className="max-h-52 overflow-y-auto px-2 py-2">
                 {cafeOptions.length === 0 && <p className="px-1 py-1 font-sans text-xs text-muted-foreground">no cafés yet</p>}
@@ -236,17 +244,25 @@ function MobileAllFilterChip({
           {/* Sub-menu: location */}
           {subMenu === "location" && (
             <div>
-              <div className="flex items-center border-b border-border px-3 py-2">
-                <button onClick={() => setSubMenu(null)} className="mr-2 text-muted-foreground hover:text-foreground">
-                  <ChevronDown className="size-3 rotate-90" />
+              <div className="flex items-center justify-between border-b border-border pl-1 pr-3 py-1">
+                <button onClick={() => setSubMenu(null)} className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-foreground">
+                  <ChevronDown className="size-4 rotate-90" />
                 </button>
                 <span className="font-mono text-xs font-medium">location</span>
-                <button
-                  onClick={() => { locationOptions.forEach(o => onToggleLocation(o.name)) }}
-                  className="ml-auto font-sans text-[11px] text-green-dark underline"
-                >
-                  all
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { locationOptions.forEach(o => onToggleLocation(o.name)) }}
+                    className="font-sans text-[11px] text-green-dark underline"
+                  >
+                    all
+                  </button>
+                  <button
+                    onClick={() => { locationOptions.forEach(o => { if (locationFilter.has(o.name)) onToggleLocation(o.name) }) }}
+                    className="font-sans text-[11px] text-muted-foreground underline"
+                  >
+                    clear
+                  </button>
+                </div>
               </div>
               <div className="max-h-52 overflow-y-auto px-2 py-2">
                 {locationOptions.length === 0 && <p className="px-1 py-1 font-sans text-xs text-muted-foreground">no locations yet</p>}
