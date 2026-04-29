@@ -192,7 +192,7 @@ export async function saveReceipt(
 ): Promise<string> {
   const [imageDataUrl, thumbnailDataUrl] = await Promise.all([
     rawImageDataUrl ? resizeImage(rawImageDataUrl, 800, 0.82) : Promise.resolve(null),
-    rawImageDataUrl ? resizeImage(rawImageDataUrl, 200, 0.8) : Promise.resolve(null),
+    rawImageDataUrl ? resizeImage(rawImageDataUrl, 400, 0.82) : Promise.resolve(null),
   ])
 
   const now = new Date().toISOString()

@@ -181,14 +181,14 @@ function MobileAllFilterChip({
               )}
               <button
                 onClick={() => setSubMenu("cafe")}
-                className="flex w-full items-center justify-between px-3 py-2.5 font-sans text-xs text-foreground hover:bg-border/40"
+                className="flex w-full items-center justify-between px-3 py-3.5 font-sans text-xs text-foreground hover:bg-border/40"
               >
                 <span>café {cafeFilter.size > 0 && <span className="ml-1 text-[10px] text-muted-foreground">({cafeFilter.size})</span>}</span>
                 <ChevronDown className="-rotate-90 size-3 opacity-50" />
               </button>
               <button
                 onClick={() => setSubMenu("location")}
-                className="flex w-full items-center justify-between px-3 py-2.5 font-sans text-xs text-foreground hover:bg-border/40"
+                className="flex w-full items-center justify-between px-3 py-3.5 font-sans text-xs text-foreground hover:bg-border/40"
               >
                 <span>location {locationFilter.size > 0 && <span className="ml-1 text-[10px] text-muted-foreground">({locationFilter.size})</span>}</span>
                 <ChevronDown className="-rotate-90 size-3 opacity-50" />
@@ -218,7 +218,7 @@ function MobileAllFilterChip({
                     key={name}
                     onClick={() => onToggleCafe(name)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-2 py-2.5 font-sans text-xs transition-colors",
+                      "flex w-full items-center gap-2 rounded-lg px-2 py-3 font-sans text-xs transition-colors",
                       cafeFilter.has(name) ? "bg-green-light text-foreground" : "text-foreground hover:bg-green-light/50"
                     )}
                   >
@@ -255,7 +255,7 @@ function MobileAllFilterChip({
                     key={name}
                     onClick={() => onToggleLocation(name)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-2 py-2.5 font-sans text-xs transition-colors",
+                      "flex w-full items-center gap-2 rounded-lg px-2 py-3 font-sans text-xs transition-colors",
                       locationFilter.has(name) ? "bg-green-light text-foreground" : "text-foreground hover:bg-green-light/50"
                     )}
                   >
@@ -638,13 +638,15 @@ function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
 
         {/* Action row: Delete (left) + Edit (right) */}
         <div className="flex gap-3">
-          <button
+          <Button
+            size="lg"
+            className="flex-1 rounded-full border-2 border-border font-sans text-sm text-foreground hover:brightness-95"
+            style={{ backgroundColor: "oklch(0.958 0.012 85)" }}
             onClick={() => setConfirmDelete(true)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-border py-2.5 font-sans text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            <Trash2 className="size-3.5" />
+            <Trash2 className="size-4" />
             Delete
-          </button>
+          </Button>
           <Button
             size="lg"
             className="flex-1 rounded-full bg-brown font-sans text-sm text-card hover:bg-brown/90"
@@ -917,8 +919,8 @@ export default function HistoryPage() {
     </div>
   </div>
 
-  {/* Desktop: two rows — filter chips row + sort controls row */}
-  <div className="hidden md:flex md:flex-col md:gap-2">
+  {/* Desktop: single row — filter chips + sort controls */}
+  <div className="hidden md:flex md:items-center md:justify-between md:gap-3">
     <div className="flex items-center gap-2">
       <FilterChip
         label="all"

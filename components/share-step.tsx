@@ -393,7 +393,7 @@ export function ShareStep({
       // Persist the newly uploaded image to the store so it survives edit/reload
       Promise.all([
         resizeImage(dataUrl, 800, 0.82),
-        resizeImage(dataUrl, 200, 0.8),
+        resizeImage(dataUrl, 400, 0.82),
       ]).then(([imageDataUrl, thumbnailDataUrl]) => {
         updateReceipt(receiptId, { imageDataUrl, thumbnailDataUrl })
       }).catch(() => { /* non-critical */ })
@@ -537,14 +537,18 @@ export function ShareStep({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
-      {/* Toast notification */}
+      {/* Toast notification — clickable link to history */}
       {toastMessage && (
-        <div
-          className="fixed left-4 top-4 z-50 rounded-lg bg-green-light px-4 py-2.5 shadow-lg"
-          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards" }}
+        <a
+          href="/history"
+          className="fixed left-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity hover:opacity-80"
+          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
         >
           <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
-        </div>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-green-dark opacity-60">
+            <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
       )}
 
       {/* Hidden canvases for export */}
@@ -866,7 +870,7 @@ function InteractiveCanvas({
             src={storyReceiptUrl}
             alt="receipt"
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ width: "70%", display: "block", borderRadius: RECEIPT_RADIUS, opacity: 0.9 }}
+            style={{ width: "70%", display: "block", borderRadius: 4, opacity: 0.9 }}
             draggable={false}
           />
         )}
