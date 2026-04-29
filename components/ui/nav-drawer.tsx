@@ -165,14 +165,20 @@ export function DesktopNav({ onNavigate }: { onNavigate?: (href: string) => bool
       <Link
         href="/"
         onClick={(e) => handleClick(e, "/")}
-        className="font-sans text-sm text-green-dark transition-colors hover:opacity-70"
+        className={cn(
+          "font-sans text-sm transition-colors hover:opacity-70",
+          pathname === "/" ? "font-medium text-foreground" : "text-green-dark"
+        )}
       >
         Rank
       </Link>
       <Link
         href="/history"
         onClick={(e) => handleClick(e, "/history")}
-        className="font-sans text-sm text-green-dark transition-colors hover:opacity-70"
+        className={cn(
+          "font-sans text-sm transition-colors hover:opacity-70",
+          pathname === "/history" ? "font-medium text-foreground" : "text-green-dark"
+        )}
       >
         History
       </Link>

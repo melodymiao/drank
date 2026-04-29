@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -10,7 +10,7 @@ import { DecorateStep, type ReceiptData, type StickerItem } from "@/components/d
 import { ShareStep } from "@/components/share-step"
 import { NavDrawer, HamburgerButton, DesktopNav } from "@/components/ui/nav-drawer"
 import { Button } from "@/components/ui/button"
-import { saveReceipt } from "@/lib/receipt-store"
+import { saveReceipt, type StoredSticker, type SavedReceipt } from "@/lib/receipt-store"
 
 const defaultReceiptData: ReceiptData = {
   cafeName: "",
@@ -45,6 +45,61 @@ export default function DrankApp() {
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null)
+
+  // Share step restore state (populated when editing a history entry)
+  const [initialReceiptStickers, setInitialReceiptStickers] = useState<StoredSticker[] | undefined>()
+  const [initialStoryStickers, setInitialStoryStickers] = useState<StoredSticker[] | undefined>()
+  const [initialShowDrinkSticker, setInitialShowDrinkSticker] = useState<boolean | undefined>()
+  const [initialBgRemovedImage, setInitialBgRemovedImage] = useState<string | undefined>()
+
+  // On mount: check sessionStorage for a history edit payload
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("drank_edit_receipt")
+      if (!raw) return
+      sessionStorage.removeItem("drank_edit_receipt")
+      const saved: SavedReceipt = JSON.parse(raw)
+
+      const {
+        cafeName, drinkName, rating, comments, location, date, time,
+        iceTemp, iceLevel, otherIceLevel, sugarLevel, otherSugarLevel,
+        milk, otherMilk, toppings, otherCustomizations,
+        imageDataUrl,
+        receiptStickers, storyStickers, showDrinkSticker, bgRemovedImageDataUrl,
+      } = saved
+
+      const restoredData: ReceiptData = {
+        cafeName: cafeName ?? "",
+        drinkName: drinkName ?? "",
+        rating: rating ?? "",
+        comments: comments ?? "",
+        location: location ?? "",
+        date: date ?? "",
+        time: time ?? "",
+        iceTemp: iceTemp ?? "",
+        iceLevel: iceLevel ?? "",
+        otherIceLevel: otherIceLevel ?? "",
+        sugarLevel: sugarLevel ?? "",
+        otherSugarLevel: otherSugarLevel ?? "",
+        milk: milk ?? "",
+        otherMilk: otherMilk ?? "",
+        toppings: toppings ?? [],
+        otherCustomizations: otherCustomizations ?? "",
+      }
+
+      setReceiptData(restoredData)
+      if (imageDataUrl) setImage(imageDataUrl)
+      setInitialReceiptStickers(receiptStickers ?? [])
+      setInitialStoryStickers(storyStickers ?? [])
+      setInitialShowDrinkSticker(showDrinkSticker ?? false)
+      if (bgRemovedImageDataUrl) setInitialBgRemovedImage(bgRemovedImageDataUrl)
+
+      // Jump straight to rank/decorate step (step 2)
+      setStep(2)
+    } catch {
+      // Non-critical — ignore malformed sessionStorage
+    }
+  }, [])
 
   const handleImageUpload = useCallback(
     (img: string, exifDate?: string, exifLocation?: string, exifCafe?: string) => {
@@ -189,6 +244,10 @@ export default function DrankApp() {
             onReset={handleReset}
             onBack={() => setStep(2)}
             onImageUpload={handleImageUpload}
+            initialReceiptStickers={initialReceiptStickers}
+            initialStoryStickers={initialStoryStickers}
+            initialShowDrinkSticker={initialShowDrinkSticker}
+            initialBgRemovedImage={initialBgRemovedImage}
           />
         )}
       </div>
