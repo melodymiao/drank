@@ -192,7 +192,7 @@ export async function saveReceipt(
 ): Promise<string> {
   const [imageDataUrl, thumbnailDataUrl] = await Promise.all([
     rawImageDataUrl ? resizeImage(rawImageDataUrl, 800, 0.82) : Promise.resolve(null),
-    rawImageDataUrl ? resizeImage(rawImageDataUrl, 80, 0.7)  : Promise.resolve(null),
+    rawImageDataUrl ? resizeImage(rawImageDataUrl, 200, 0.8) : Promise.resolve(null),
   ])
 
   const now = new Date().toISOString()
@@ -230,8 +230,9 @@ export async function saveReceipt(
  * Called when the user taps "Save Story" / "Save Receipt" on the share step.
  * Pass only the fields that changed — everything else is preserved.
  *
- * savedCanvasDataUrl always stores the receipt canvas (not story) so the
- * history preview is always a receipt image. Last write wins — no priority gating.
+ * Special rule: savedCanvasDataUrl is only written when the incoming
+ * savedCanvasPriority is >= the existing value, so the "most detailed"
+ * version (story with drink sticker) is never overwritten by a simpler save.
  */
 export function updateReceipt(
   id: string,
@@ -244,53 +245,24 @@ export function updateReceipt(
     return
   }
 
+  const existing = all[idx]
+
+  // If the incoming update carries a canvas, only accept it when it is at least
+  // as "detailed" as what we already have stored.
+  const incomingPriority = updates.savedCanvasPriority ?? -1
+  const existingPriority = existing.savedCanvasPriority ?? -1
+  const canvasUpdates =
+    incomingPriority >= existingPriority
+      ? {}
+      : { savedCanvasDataUrl: existing.savedCanvasDataUrl, savedCanvasPriority: existingPriority }
+
   all[idx] = {
-    ...all[idx],
-    ...updates,
-    updatedAt: new Date().toISOString(),
-  }
-  writeAll(all)
-}
-
-/**
- * Re-saves a receipt after editing from history.
- * Unlike saveReceipt, this preserves the existing imageDataUrl/thumbnailDataUrl
- * without re-compressing them. bgRemovedImageDataUrl is also preserved unless
- * a new value is explicitly passed.
- *
- * Returns the receipt id.
- */
-export function saveReceiptEdit(
-  existing: SavedReceipt,
-  data: ReceiptData
-): string {
-  const all = readAll()
-  const idx = all.findIndex((r) => r.id === existing.id)
-
-  const updated: SavedReceipt = {
     ...existing,
-    ...data,
-    // Media: preserve existing, do not re-compress
-    imageDataUrl: existing.imageDataUrl,
-    thumbnailDataUrl: existing.thumbnailDataUrl,
-    bgRemovedImageDataUrl: existing.bgRemovedImageDataUrl,
-    // Share state: reset stickers/canvas since the user is re-editing
-    receiptStickers: existing.receiptStickers,
-    storyStickers: existing.storyStickers,
-    showDrinkSticker: existing.showDrinkSticker,
-    savedCanvasDataUrl: existing.savedCanvasDataUrl,
-    savedCanvasPriority: existing.savedCanvasPriority,
+    ...updates,
+    ...canvasUpdates,
     updatedAt: new Date().toISOString(),
   }
-
-  if (idx !== -1) {
-    all[idx] = updated
-  } else {
-    all.unshift(updated)
-  }
-
   writeAll(all)
-  return existing.id
 }
 
 export type ReceiptSortBy = "rating" | "latest"

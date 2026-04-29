@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ChevronDown, Trash2, Pencil, ArrowUpDown } from "lucide-react"
+import { ChevronDown, Trash2, Pencil, ArrowUpDown, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getReceipts,
@@ -74,6 +74,203 @@ function StatsBar() {
           <span className="font-sans text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   Mobile "all" filter chip — two-level dropdown for café + location
+─────────────────────────────────────────────────────────────── */
+interface MobileAllFilterChipProps {
+  activeFilterCount: number
+  cafeOptions: Array<{ name: string; count: number }>
+  locationOptions: Array<{ name: string; count: number }>
+  cafeFilter: Set<string>
+  locationFilter: Set<string>
+  onToggleCafe: (name: string) => void
+  onToggleLocation: (name: string) => void
+  onClearAll: () => void
+}
+
+function MobileAllFilterChip({
+  activeFilterCount,
+  cafeOptions,
+  locationOptions,
+  cafeFilter,
+  locationFilter,
+  onToggleCafe,
+  onToggleLocation,
+  onClearAll,
+}: MobileAllFilterChipProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [subMenu, setSubMenu] = useState<"cafe" | "location" | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+
+  useEffect(() => {
+    if (!isOpen || !buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const panelWidth = 220
+    const left = Math.min(rect.left, window.innerWidth - panelWidth - 8)
+    setDropdownStyle({
+      position: "fixed",
+      top: rect.bottom + 6,
+      left: Math.max(8, left),
+      width: panelWidth,
+      zIndex: 9999,
+    })
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    function handlePointer(e: MouseEvent | TouchEvent) {
+      const target = e instanceof TouchEvent ? e.touches[0]?.target : (e.target as Node)
+      if (!target) return
+      if (
+        buttonRef.current?.contains(target as Node) ||
+        dropdownRef.current?.contains(target as Node)
+      ) return
+      setIsOpen(false)
+      setSubMenu(null)
+    }
+    document.addEventListener("mousedown", handlePointer)
+    document.addEventListener("touchstart", handlePointer)
+    return () => {
+      document.removeEventListener("mousedown", handlePointer)
+      document.removeEventListener("touchstart", handlePointer)
+    }
+  }, [isOpen])
+
+  const active = activeFilterCount > 0
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        ref={buttonRef}
+        onClick={() => { setIsOpen((o) => !o); setSubMenu(null) }}
+        className={cn(
+          "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-3 py-1.5 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
+          active || isOpen
+            ? "border-green-light bg-green-light text-foreground"
+            : "border-green-light bg-green-light/25 text-green-dark"
+        )}
+      >
+        all
+        {activeFilterCount > 0 && (
+          <span className="flex size-4 items-center justify-center rounded-full bg-foreground/15 text-[9px]">
+            {activeFilterCount}
+          </span>
+        )}
+        <ChevronDown className={cn("size-3 opacity-50 transition-transform", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && (
+        <div ref={dropdownRef} style={dropdownStyle} className="rounded-xl border border-border bg-card shadow-lg">
+          {/* Top-level menu */}
+          {!subMenu && (
+            <div className="py-1.5">
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={() => { onClearAll(); setIsOpen(false) }}
+                  className="flex w-full items-center px-3 py-2 font-sans text-xs text-muted-foreground hover:bg-border/40"
+                >
+                  clear all
+                </button>
+              )}
+              <button
+                onClick={() => setSubMenu("cafe")}
+                className="flex w-full items-center justify-between px-3 py-2.5 font-sans text-xs text-foreground hover:bg-border/40"
+              >
+                <span>café {cafeFilter.size > 0 && <span className="ml-1 text-[10px] text-muted-foreground">({cafeFilter.size})</span>}</span>
+                <ChevronDown className="-rotate-90 size-3 opacity-50" />
+              </button>
+              <button
+                onClick={() => setSubMenu("location")}
+                className="flex w-full items-center justify-between px-3 py-2.5 font-sans text-xs text-foreground hover:bg-border/40"
+              >
+                <span>location {locationFilter.size > 0 && <span className="ml-1 text-[10px] text-muted-foreground">({locationFilter.size})</span>}</span>
+                <ChevronDown className="-rotate-90 size-3 opacity-50" />
+              </button>
+            </div>
+          )}
+
+          {/* Sub-menu: café */}
+          {subMenu === "cafe" && (
+            <div>
+              <div className="flex items-center border-b border-border px-3 py-2">
+                <button onClick={() => setSubMenu(null)} className="mr-2 text-muted-foreground hover:text-foreground">
+                  <ChevronDown className="size-3 rotate-90" />
+                </button>
+                <span className="font-mono text-xs font-medium">café</span>
+                <button
+                  onClick={() => { cafeOptions.forEach(o => onToggleCafe(o.name)) }}
+                  className="ml-auto font-sans text-[11px] text-green-dark underline"
+                >
+                  all
+                </button>
+              </div>
+              <div className="max-h-52 overflow-y-auto px-2 py-2">
+                {cafeOptions.length === 0 && <p className="px-1 py-1 font-sans text-xs text-muted-foreground">no cafés yet</p>}
+                {cafeOptions.map(({ name, count }) => (
+                  <button
+                    key={name}
+                    onClick={() => onToggleCafe(name)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-lg px-2 py-2.5 font-sans text-xs transition-colors",
+                      cafeFilter.has(name) ? "bg-green-light text-foreground" : "text-foreground hover:bg-green-light/50"
+                    )}
+                  >
+                    <span className={cn("flex size-4 shrink-0 items-center justify-center rounded-none border", cafeFilter.has(name) ? "border-foreground bg-foreground" : "border-border bg-card")}>
+                      {cafeFilter.has(name) && <svg viewBox="0 0 10 8" className="size-2.5" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                    </span>
+                    <span className="truncate">{name}</span>
+                    <span className="ml-auto shrink-0 opacity-50">({count})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sub-menu: location */}
+          {subMenu === "location" && (
+            <div>
+              <div className="flex items-center border-b border-border px-3 py-2">
+                <button onClick={() => setSubMenu(null)} className="mr-2 text-muted-foreground hover:text-foreground">
+                  <ChevronDown className="size-3 rotate-90" />
+                </button>
+                <span className="font-mono text-xs font-medium">location</span>
+                <button
+                  onClick={() => { locationOptions.forEach(o => onToggleLocation(o.name)) }}
+                  className="ml-auto font-sans text-[11px] text-green-dark underline"
+                >
+                  all
+                </button>
+              </div>
+              <div className="max-h-52 overflow-y-auto px-2 py-2">
+                {locationOptions.length === 0 && <p className="px-1 py-1 font-sans text-xs text-muted-foreground">no locations yet</p>}
+                {locationOptions.map(({ name, count }) => (
+                  <button
+                    key={name}
+                    onClick={() => onToggleLocation(name)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-lg px-2 py-2.5 font-sans text-xs transition-colors",
+                      locationFilter.has(name) ? "bg-green-light text-foreground" : "text-foreground hover:bg-green-light/50"
+                    )}
+                  >
+                    <span className={cn("flex size-4 shrink-0 items-center justify-center rounded-none border", locationFilter.has(name) ? "border-foreground bg-foreground" : "border-border bg-card")}>
+                      {locationFilter.has(name) && <svg viewBox="0 0 10 8" className="size-2.5" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                    </span>
+                    <span className="truncate">{name}</span>
+                    <span className="ml-auto shrink-0 opacity-50">({count})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -412,10 +609,19 @@ function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
       onClick={handleBackdropClick}
     >
       <div
-        className="flex w-full max-w-[340px] flex-col gap-4 rounded-md p-4 shadow-xl"
+        className="relative flex w-full max-w-[340px] flex-col gap-4 rounded-md p-4 shadow-xl"
         style={{ backgroundColor: "oklch(0.958 0.012 85)" }}
       >
-        {/* Header text — matches share-step modal style */}
+        {/* X close — top right, no border */}
+        <button
+          onClick={onClose}
+          className="absolute right-3 top-3 text-muted-foreground transition-opacity hover:opacity-70"
+          aria-label="Close"
+        >
+          <X className="size-4" />
+        </button>
+
+        {/* Header text */}
         <div className="text-center">
           <p className="font-sans text-sm text-foreground">
             {receipt.drinkName || "Beverage"}
@@ -430,16 +636,15 @@ function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
           <MiniReceipt receipt={receipt} />
         </div>
 
-        {/* Action row */}
+        {/* Action row: Delete (left) + Edit (right) */}
         <div className="flex gap-3">
-          <Button
-            size="lg"
-            className="flex-1 rounded-full border-2 border-border font-sans text-sm text-foreground hover:brightness-95"
-            style={{ backgroundColor: "oklch(0.958 0.012 85)" }}
-            onClick={onClose}
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-border py-2.5 font-sans text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
-            Close
-          </Button>
+            <Trash2 className="size-3.5" />
+            Delete
+          </button>
           <Button
             size="lg"
             className="flex-1 rounded-full bg-brown font-sans text-sm text-card hover:bg-brown/90"
@@ -449,13 +654,6 @@ function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
             Edit
           </Button>
         </div>
-        <button
-          onClick={() => setConfirmDelete(true)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-full border border-pink-dark/40 py-2 font-sans text-sm text-pink-dark transition-colors hover:bg-pink-dark/10"
-        >
-          <Trash2 className="size-3.5" />
-          delete
-        </button>
       </div>
 
       {confirmDelete && (
@@ -526,7 +724,7 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
           className="flex items-center gap-3 px-4 py-4 text-left transition-colors rounded-md hover:bg-border/30 w-full"
         >
           {/* Rank number */}
-          <span className="w-5 shrink-0 font-mono text-xs text-muted-foreground">
+          <span className="w-2 shrink-0 font-mono text-xs text-muted-foreground">
             {idx + 1}
           </span>
 
@@ -693,87 +891,78 @@ export default function HistoryPage() {
               <StatsBar />
             </div>
 
-            {/* Toolbar: filters on row 1, sort+view controls on row 2. Desktop: single row. */}
-<div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
+            {/* Toolbar */}
+<div className="mb-4">
 
-{/* Row 1 — filter chips */}
-<div className="flex items-center gap-2 overflow-x-auto pb-0.5 md:overflow-x-visible">
-  <FilterChip
-    label="all"
-    active={activeFilterCount === 0}
-    onClick={() => { setCafeFilter(new Set()); setLocationFilter(new Set()); setOpenFilter(null) }}
-  />
-  <FilterChip
-    label="café"
-    active={cafeFilter.size > 0}
-    count={cafeFilter.size}
-    options={cafeOptions}
-    selected={cafeFilter}
-    onToggle={(name) => setCafeFilter((prev) => {
-      const next = new Set(prev)
-      next.has(name) ? next.delete(name) : next.add(name)
-      return next
-    })}
-    onSelectAll={() => setCafeFilter(new Set(cafeOptions.map((o) => o.name)))}
-    onClear={() => setCafeFilter(new Set())}
-    isOpen={openFilter === "cafe"}
-    onClose={() => setOpenFilter(null)}
-    onClick={() => setOpenFilter(openFilter === "cafe" ? null : "cafe")}
-  />
-  <FilterChip
-    label="location"
-    active={locationFilter.size > 0}
-    count={locationFilter.size}
-    options={locationOptions}
-    selected={locationFilter}
-    onToggle={(name) => setLocationFilter((prev) => {
-      const next = new Set(prev)
-      next.has(name) ? next.delete(name) : next.add(name)
-      return next
-    })}
-    onSelectAll={() => setLocationFilter(new Set(locationOptions.map((o) => o.name)))}
-    onClear={() => setLocationFilter(new Set())}
-    isOpen={openFilter === "location"}
-    onClose={() => setOpenFilter(null)}
-    onClick={() => setOpenFilter(openFilter === "location" ? null : "location")}
-  />
-</div>
+  {/* Mobile: single row — collapsed "all" filter + sort controls */}
+  <div className="flex items-center gap-2 md:hidden">
+    <MobileAllFilterChip
+      activeFilterCount={activeFilterCount}
+      cafeOptions={cafeOptions}
+      locationOptions={locationOptions}
+      cafeFilter={cafeFilter}
+      locationFilter={locationFilter}
+      onToggleCafe={(name) => setCafeFilter((prev) => { const next = new Set(prev); next.has(name) ? next.delete(name) : next.add(name); return next })}
+      onToggleLocation={(name) => setLocationFilter((prev) => { const next = new Set(prev); next.has(name) ? next.delete(name) : next.add(name); return next })}
+      onClearAll={() => { setCafeFilter(new Set()); setLocationFilter(new Set()) }}
+    />
+    <div className="ml-auto flex items-center gap-2">
+      <div className="flex rounded-xl border-2 border-border bg-transparent p-1">
+        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground")}>ranking</button>
+        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground")}>latest</button>
+      </div>
+      <button onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} className="flex items-center justify-center p-1 text-green-dark transition-opacity hover:opacity-70" aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}>
+        <ArrowUpDown className="size-5" />
+      </button>
+    </div>
+  </div>
 
-{/* Row 2 — sort + view toggles + flip */}
-<div className="flex items-center gap-3">
+  {/* Desktop: two rows — filter chips row + sort controls row */}
+  <div className="hidden md:flex md:flex-col md:gap-2">
+    <div className="flex items-center gap-2">
+      <FilterChip
+        label="all"
+        active={activeFilterCount === 0}
+        onClick={() => { setCafeFilter(new Set()); setLocationFilter(new Set()); setOpenFilter(null) }}
+      />
+      <FilterChip
+        label="café"
+        active={cafeFilter.size > 0}
+        count={cafeFilter.size}
+        options={cafeOptions}
+        selected={cafeFilter}
+        onToggle={(name) => setCafeFilter((prev) => { const next = new Set(prev); next.has(name) ? next.delete(name) : next.add(name); return next })}
+        onSelectAll={() => setCafeFilter(new Set(cafeOptions.map((o) => o.name)))}
+        onClear={() => setCafeFilter(new Set())}
+        isOpen={openFilter === "cafe"}
+        onClose={() => setOpenFilter(null)}
+        onClick={() => setOpenFilter(openFilter === "cafe" ? null : "cafe")}
+      />
+      <FilterChip
+        label="location"
+        active={locationFilter.size > 0}
+        count={locationFilter.size}
+        options={locationOptions}
+        selected={locationFilter}
+        onToggle={(name) => setLocationFilter((prev) => { const next = new Set(prev); next.has(name) ? next.delete(name) : next.add(name); return next })}
+        onSelectAll={() => setLocationFilter(new Set(locationOptions.map((o) => o.name)))}
+        onClear={() => setLocationFilter(new Set())}
+        isOpen={openFilter === "location"}
+        onClose={() => setOpenFilter(null)}
+        onClick={() => setOpenFilter(openFilter === "location" ? null : "location")}
+      />
+    </div>
+    <div className="flex items-center gap-3">
+      <div className="flex rounded-xl border-2 border-border bg-transparent p-1">
+        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground")}>ranking</button>
+        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground")}>latest</button>
+      </div>
+      <button onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} className="flex items-center justify-center p-1 text-green-dark transition-opacity hover:opacity-70" aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}>
+        <ArrowUpDown className="size-5" />
+      </button>
+    </div>
+  </div>
 
-  {/* Sort toggle */}
-<div className="flex rounded-xl border-2 border-border bg-transparent p-1">
-  <button
-    onClick={() => setSortBy("rating")}
-    className={cn(
-      "rounded-md px-3 py-1.5 font-mono text-xs transition-colors",
-      sortBy === "rating" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground"
-    )}
-  >
-    ranking
-  </button>
-  <button
-    onClick={() => setSortBy("latest")}
-    className={cn(
-      "rounded-md px-3 py-1.5 font-mono text-xs transition-colors",
-      sortBy === "latest" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground"
-    )}
-  >
-    latest
-  </button>
-</div>
-
-  {/* Flip sort direction */}
-  <button
-    onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")}
-    className="flex items-center justify-center p-1 text-green-dark transition-opacity hover:opacity-70"
-    aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}
-  >
-    <ArrowUpDown className="size-5" />
-  </button>
-
-</div>
 </div>
             {/* Empty state */}
             {filteredReceipts.length === 0 && (

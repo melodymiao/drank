@@ -86,7 +86,7 @@ interface SelectionRect {
 
 // Receipt constants — single source of truth used by both preview and canvas export
 const RECEIPT_BG = "rgba(254,252,244,0.9)"
-const RECEIPT_RADIUS = 4
+const RECEIPT_RADIUS = 8
 const TEXT_COLOR = "#473C23"
 
 export function ShareStep({
@@ -393,7 +393,7 @@ export function ShareStep({
       // Persist the newly uploaded image to the store so it survives edit/reload
       Promise.all([
         resizeImage(dataUrl, 800, 0.82),
-        resizeImage(dataUrl, 80, 0.7),
+        resizeImage(dataUrl, 200, 0.8),
       ]).then(([imageDataUrl, thumbnailDataUrl]) => {
         updateReceipt(receiptId, { imageDataUrl, thumbnailDataUrl })
       }).catch(() => { /* non-critical */ })

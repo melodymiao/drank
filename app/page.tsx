@@ -41,7 +41,7 @@ export default function DrankApp() {
   const [image, setImage] = useState<string | null>(null)
   const [receiptData, setReceiptData] = useState<ReceiptData>(defaultReceiptData)
   const [stickers, setStickers] = useState<StickerItem[]>([])
-  const [receiptId] = useState(() => generateId())
+  const [receiptId, setReceiptId] = useState(() => generateId())
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null)
@@ -61,12 +61,16 @@ export default function DrankApp() {
       const saved: SavedReceipt = JSON.parse(raw)
 
       const {
+        id: savedId,
         cafeName, drinkName, rating, comments, location, date, time,
         iceTemp, iceLevel, otherIceLevel, sugarLevel, otherSugarLevel,
         milk, otherMilk, toppings, otherCustomizations,
         imageDataUrl,
         receiptStickers, storyStickers, showDrinkSticker, bgRemovedImageDataUrl,
       } = saved
+
+      // Restore the original ID so saving overwrites the same record
+      if (savedId) setReceiptId(savedId)
 
       const restoredData: ReceiptData = {
         cafeName: cafeName ?? "",
