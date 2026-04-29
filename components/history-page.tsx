@@ -235,16 +235,8 @@ function FilterChip({
    Delete confirm modal
 ─────────────────────────────────────────────────────────────── */
 function DeleteModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
-  // Close on backdrop tap
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) onCancel()
-  }
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={handleBackdropClick}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl bg-card p-6 shadow-lg">
         <div className="flex flex-col gap-1.5">
           <p className="font-mono text-sm font-medium text-foreground">delete this receipt?</p>
@@ -401,16 +393,8 @@ interface DetailSheetProps {
 function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  // Close when tapping the backdrop (but not the modal card itself)
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) onClose()
-  }
-
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4"
-      onClick={handleBackdropClick}
-    >
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4">
       <div
         className="flex w-full max-w-[340px] flex-col gap-4 rounded-md p-4 shadow-xl"
         style={{ backgroundColor: "oklch(0.958 0.012 85)" }}
@@ -473,7 +457,7 @@ function DetailSheet({ receipt, onClose, onEdit, onDelete }: DetailSheetProps) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   List item — right-click / two-finger-tap shows inline delete button
+   List item with long-press / right-click delete
 ─────────────────────────────────────────────────────────────── */
 interface ListItemProps {
   receipt: SavedReceipt
@@ -483,145 +467,112 @@ interface ListItemProps {
 }
 
 function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
-  const [showDeleteBtn, setShowDeleteBtn] = useState(false)
-  // Desktop context menu position (fixed coords at cursor)
-  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const rowRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const [showContextDelete, setShowContextDelete] = useState(false)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didLongPress = useRef(false)
 
-  const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches
+  const handleTouchStart = () => {
+    didLongPress.current = false
+    longPressTimer.current = setTimeout(() => {
+      didLongPress.current = true
+      setShowContextDelete(true)
+    }, 500)
+  }
 
-  // Close inline button or desktop menu when clicking/tapping outside
-  useEffect(() => {
-    if (!showDeleteBtn && !menuPos) return
-    function handleOutside(e: MouseEvent | TouchEvent) {
-      const target = e instanceof TouchEvent ? e.touches[0]?.target : (e.target as Node)
-      if (!target) return
-      // For desktop menu, check against the floating menu element
-      if (menuRef.current?.contains(target as Node)) return
-      // For mobile inline button, check against the row
-      if (rowRef.current?.contains(target as Node) && !menuPos) return
-      setShowDeleteBtn(false)
-      setMenuPos(null)
-    }
-    document.addEventListener("mousedown", handleOutside)
-    document.addEventListener("touchstart", handleOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleOutside)
-      document.removeEventListener("touchstart", handleOutside)
-    }
-  }, [showDeleteBtn, menuPos])
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+  }
+
+  const handleClick = () => {
+    if (didLongPress.current) return
+    onClick()
+  }
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
-    if (isDesktop()) {
-      setMenuPos({ x: e.clientX, y: e.clientY })
-      setShowDeleteBtn(false)
-    } else {
-      setShowDeleteBtn(true)
-      setMenuPos(null)
-    }
-  }
-
-  const triggerDelete = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    setShowDeleteBtn(false)
-    setMenuPos(null)
-    setConfirmDelete(true)
+    setShowContextDelete(true)
   }
 
   return (
     <>
-      <div ref={rowRef} className="relative">
-        <button
-          onClick={onClick}
-          onContextMenu={handleContextMenu}
-          className="flex items-center gap-3 px-4 py-4 text-left transition-colors rounded-md hover:bg-border/30 w-full"
-        >
-          {/* Rank number */}
-          <span className="w-5 shrink-0 font-mono text-xs text-muted-foreground">
-            {idx + 1}
+      <button
+        onClick={handleClick}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onContextMenu={handleContextMenu}
+        className="flex items-center gap-3 px-4 py-4 text-left transition-colors rounded-md hover:bg-border/30 w-full"
+      >
+        {/* Rank number */}
+        <span className="w-5 shrink-0 font-mono text-xs text-muted-foreground">
+          {idx + 1}
+        </span>
+
+        {/* Thumbnail — taller */}
+        {(() => {
+          const thumb = receipt.bgRemovedImageDataUrl ?? receipt.thumbnailDataUrl
+          return thumb ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={thumb}
+              alt={receipt.drinkName}
+              className={cn(
+                "size-20 shrink-0",
+                receipt.bgRemovedImageDataUrl ? "object-contain" : "object-cover"
+              )}
+            />
+          ) : (
+            <CupPlaceholder className="size-20 shrink-0 rounded-md" />
+          )
+        })()}
+
+        {/* Info */}
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="truncate font-mono text-md font-medium text-foreground">
+            {receipt.drinkName || "Beverage"}
           </span>
-
-          {/* Thumbnail */}
-          {(() => {
-            const thumb = receipt.bgRemovedImageDataUrl ?? receipt.thumbnailDataUrl
-            return thumb ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={thumb}
-                alt={receipt.drinkName}
-                className={cn(
-                  "size-20 shrink-0",
-                  receipt.bgRemovedImageDataUrl ? "object-contain" : "object-cover"
-                )}
-              />
-            ) : (
-              <CupPlaceholder className="size-20 shrink-0 rounded-md" />
-            )
-          })()}
-
-          {/* Info */}
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="truncate font-mono text-md font-medium text-foreground">
-              {receipt.drinkName || "Beverage"}
-            </span>
-            <span className="truncate font-sans text-sm text-muted-foreground">
-              {[receipt.cafeName, receipt.location].filter(Boolean).join(" · ")}
-            </span>
-          </div>
-
-          {/* Rating badge */}
-          <div
-            className="flex size-12 shrink-0 items-center justify-center rounded-full font-mono text-md font-medium"
-            style={{ backgroundColor: getRatingColor(receipt.rating), color: "#473C23" }}
-          >
-            {receipt.rating || "—"}
-          </div>
-        </button>
-
-        {/* Mobile inline delete button — slides in over the right edge of the row */}
-        {showDeleteBtn && (
-          <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-            <button
-              onClick={triggerDelete}
-              className="flex items-center justify-center rounded-lg p-2.5 transition-opacity hover:opacity-80"
-              style={{ backgroundColor: "#F1C5BE" }}
-              aria-label="Delete receipt"
-            >
-              <Trash2 className="size-4" style={{ color: "#E85B5B" }} />
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Desktop context menu — fixed, anchored below the row's left edge */}
-      {menuPos && (
-        <div
-          ref={menuRef}
-          className="fixed z-50 rounded-lg overflow-hidden"
-          style={{ top: menuPos.y, left: menuPos.x }}
-        >
-          <button
-            onClick={triggerDelete}
-            className="flex items-center gap-2 rounded-lg border-0 px-3 py-2 no-underline shadow-none outline-none focus:outline-none focus-visible:outline-none transition-opacity hover:opacity-80"
-            style={{ backgroundColor: "#F1C5BE", textDecoration: "none", borderBottom: "none", boxShadow: "none" }}
-          >
-            <Trash2 className="size-3.5 shrink-0" style={{ color: "#E85B5B" }} />
-            <span className="font-sans text-sm" style={{ color: "#E85B5B", textDecoration: "none" }}>delete</span>
-          </button>
+          <span className="truncate font-sans text-sm text-muted-foreground">
+            {[receipt.cafeName, receipt.location].filter(Boolean).join(" · ")}
+          </span>
         </div>
-      )}
 
-      {confirmDelete && (
-        <DeleteModal
-          onConfirm={() => {
-            setConfirmDelete(false)
-            onDelete()
-          }}
-          onCancel={() => setConfirmDelete(false)}
-        />
+        {/* Rating badge */}
+        <div
+          className="flex size-12 shrink-0 items-center justify-center rounded-full font-mono text-md font-medium"
+          style={{ backgroundColor: getRatingColor(receipt.rating), color: "#473C23" }}
+        >
+          {receipt.rating || "—"}
+        </div>
+      </button>
+
+      {/* Context delete overlay */}
+      {showContextDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl bg-card p-6 shadow-lg">
+            <div className="flex flex-col gap-1.5">
+              <p className="font-mono text-sm font-medium text-foreground">delete this receipt?</p>
+              <p className="font-sans text-sm text-muted-foreground">
+                {receipt.drinkName || "Beverage"}{receipt.cafeName ? ` · ${receipt.cafeName}` : ""}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                className="flex-1 rounded-full border border-border py-2.5 font-mono text-sm text-foreground transition-colors hover:bg-border/60"
+                onClick={() => setShowContextDelete(false)}
+              >
+                keep it
+              </button>
+              <button
+                className="flex-1 rounded-full bg-pink-dark py-2.5 font-mono text-sm text-white transition-colors hover:bg-pink-dark/90"
+                onClick={() => {
+                  setShowContextDelete(false)
+                  onDelete()
+                }}
+              >
+                delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
@@ -767,7 +718,7 @@ export default function HistoryPage() {
 </div>
 
 {/* Row 2 — sort + view toggles + flip */}
-<div className="flex items-center gap-3">
+<div className="flex items-center gap-2">
 
   {/* Sort toggle */}
 <div className="flex rounded-xl border-2 border-border bg-transparent p-1">
@@ -791,13 +742,13 @@ export default function HistoryPage() {
   </button>
 </div>
 
-  {/* Flip sort direction */}
+  {/* Flip sort direction — green text link, no button chrome */}
   <button
     onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")}
-    className="flex items-center justify-center p-1 text-green-dark transition-opacity hover:opacity-70"
+    className="flex items-center gap-1 font-sans text-sm text-green-dark transition-opacity hover:opacity-70"
     aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}
   >
-    <ArrowUpDown className="size-5" />
+    <ArrowUpDown className="size-3.5" />
   </button>
 
 </div>
