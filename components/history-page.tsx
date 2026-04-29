@@ -51,27 +51,56 @@ function CupPlaceholder({ className }: { className?: string }) {
 /* ─────────────────────────────────────────────────────────────
    Stats bar — scrollable on mobile, fills width on desktop
 ─────────────────────────────────────────────────────────────── */
+// Alternating tilt patterns: L/R/L or R/L/R, decided randomly each mount.
+const TILT_PATTERNS = [
+  [-1,  1, -1],  // left, right, left
+  [ 1, -1,  1],  // right, left, right
+]
+
 function StatsBar() {
-  const [stats, setStats] = useState({ totalRanked: 0, avgScore: null as number | null, uniqueCafes: 0, uniqueCities: 0 })
+  const [stats, setStats] = useState({ avgScore: null as number | null, uniqueCafes: 0, uniqueCities: 0 })
+
+  // Start neutral during SSR — populated after mount to avoid hydration mismatch.
+  const [transforms, setTransforms] = useState<Array<{ rotate: number; translateY: number }>>([
+    { rotate: 0, translateY: 0 },
+    { rotate: 0, translateY: 0 },
+    { rotate: 0, translateY: 0 },
+  ])
 
   useEffect(() => {
-    setStats(getStats())
+    const s = getStats()
+    setStats({ avgScore: s.avgScore, uniqueCafes: s.uniqueCafes, uniqueCities: s.uniqueCities })
+
+    // Pick a random alternating pattern (L/R/L or R/L/R)
+    const signs = TILT_PATTERNS[Math.random() < 0.5 ? 0 : 1]
+    setTransforms(signs.map((sign) => ({
+      rotate: sign * (1.5 + Math.random() * 2),
+      translateY: Math.random() * 6,
+    })))
   }, [])
 
   const items = [
-    { label: "ranked", value: stats.totalRanked },
-    { label: "avg score", value: stats.avgScore !== null ? stats.avgScore.toFixed(1) : "—" },
-    { label: "cafés", value: stats.uniqueCafes },
-    { label: "cities", value: stats.uniqueCities },
+    { label: "avg score", value: stats.avgScore !== null ? stats.avgScore.toFixed(1) : "—", bg: "#F884A3", border: "#e06a8a" },
+    { label: "cafés",     value: stats.uniqueCafes,  bg: "#E0DE96", border: "#b8b65a" },
+    { label: "cities",    value: stats.uniqueCities,  bg: "#9BCFEC", border: "#68a9cc" },
   ]
 
   return (
-    // On mobile: overflow-x-auto scroll. On desktop: flex with each card flex-1 to fill the width.
-    <div className="flex gap-3 overflow-x-auto pb-1 md:overflow-x-visible">
-      {items.map(({ label, value }) => (
-        <div key={label} className="flex shrink-0 flex-col items-center rounded-xl border border-border bg-card px-4 py-6 md:flex-1 md:shrink">
-          <span className="font-mono text-lg font-medium text-foreground leading-tight">{value}</span>
-          <span className="font-sans text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
+    // py-3 gives rotated cards room to breathe without clipping into header or sibling rows
+    <div className="flex gap-3 overflow-x-auto overflow-y-visible px-1 py-3 md:overflow-x-visible">
+      {items.map(({ label, value, bg, border }, i) => (
+        <div
+          key={label}
+          className="flex shrink-0 flex-col items-center rounded-xl px-4 py-6 md:flex-1 md:shrink"
+          style={{
+            backgroundColor: bg,
+            border: `1.5px solid ${border}`,
+            transform: `rotate(${transforms[i].rotate}deg) translateY(${transforms[i].translateY}px)`,
+            transition: "transform 0.2s ease",
+          }}
+        >
+          <span className="font-mono text-lg font-medium leading-tight text-[#473C23]">{value}</span>
+          <span className="font-sans text-[10px] uppercase tracking-wider text-[#473C23]/70">{label}</span>
         </div>
       ))}
     </div>

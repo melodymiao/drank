@@ -10,6 +10,65 @@ import { ERRORS, pickError } from "@/lib/errors"
 import { updateReceipt, resizeImage, type StoredSticker } from "@/lib/receipt-store"
 
 /* ============================================================
+   Rotating Loading Message
+   ============================================================ */
+
+const BG_REMOVAL_MESSAGES = [
+  "finding your drink...",
+  "cutting out the background...",
+  "separating drink from chaos...",
+  "this takes a minute, we promise it's worth it",
+  "running the magic scissors...",
+  "almost there, probably",
+  "your drink is becoming a sticker",
+  "clipping paths, not coupons",
+  "hang tight, this part is hard",
+]
+
+const PHOTO_CONVERTING_MESSAGES = [
+  "converting your photo...",
+  "reading the pixels...",
+  "wrangling the file...",
+  "almost ready...",
+]
+
+function RotatingMessage({ messages, className }: { messages: string[]; className?: string }) {
+  const [idx, setIdx] = useState(0)
+  const [visible, setVisible] = useState(true)
+  // Shuffle order on mount so messages don't always start the same
+  const order = useRef<number[]>([])
+  if (order.current.length === 0) {
+    const arr = messages.map((_, i) => i)
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    order.current = arr
+  }
+  const posRef = useRef(0)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => {
+        posRef.current = (posRef.current + 1) % order.current.length
+        setIdx(order.current[posRef.current])
+        setVisible(true)
+      }, 250)
+    }, 2800)
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <span
+      className={cn("transition-opacity duration-[250ms]", visible ? "opacity-100" : "opacity-0", className)}
+    >
+      {messages[idx]}
+    </span>
+  )
+}
+
+/* ============================================================
    Sticker Definitions
    ============================================================ */
 
@@ -54,6 +113,7 @@ interface PlacedSticker {
   y: number // percentage 0-100
   scale: number // 1 = default
   rotation: number // degrees
+  isNew?: boolean // cleared after first render to avoid re-triggering
 }
 
 /* ============================================================
@@ -411,9 +471,16 @@ export function ShareStep({
       y: 50,
       scale: 1,
       rotation: 0,
+      isNew: true,
     }
     setActiveStickers((prev) => [...prev, newSticker])
     setSelectedStickerId(newSticker.id)
+    // Clear isNew after animation completes so it doesn't retrigger on re-render
+    setTimeout(() => {
+      setActiveStickers((prev) =>
+        prev.map((s) => s.id === newSticker.id ? { ...s, isNew: false } : s)
+      )
+    }, 350)
   }, [setActiveStickers])
 
   const handleUpdateSticker = useCallback((id: string, updates: Partial<PlacedSticker>) => {
@@ -449,12 +516,12 @@ export function ShareStep({
         </button>
       ) : isPhotoConverting ? (
         <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
-          converting photo…
+          <RotatingMessage messages={PHOTO_CONVERTING_MESSAGES} className="font-sans text-sm text-muted-foreground" />
           <div className="size-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
         </span>
       ) : isBgProcessing ? (
         <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
-          this may take a minute...
+          <RotatingMessage messages={BG_REMOVAL_MESSAGES} className="font-sans text-sm text-muted-foreground" />
           <div className="size-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
         </span>
       ) : (
@@ -1043,7 +1110,7 @@ function ReceiptContent({
         <div className="my-3 flex justify-center">
           <div className="flex flex-col items-center gap-1">
             <div className="size-6 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-            <span className="text-[8px] text-muted-foreground">removing background...</span>
+            <RotatingMessage messages={BG_REMOVAL_MESSAGES} className="text-[8px] text-muted-foreground" />
           </div>
         </div>
       ) : stickerImage ? (
@@ -1380,15 +1447,19 @@ function DraggableSticker({
       {/* ── Scaled pill (drag target) ───────────────────────────────────────── */}
       <div
         ref={stickerRef}
-        className="absolute"
+        className={cn("absolute", sticker.isNew && "drank-sticker-popin")}
         style={{
           left: `${sticker.x}%`,
           top: `${sticker.y}%`,
-          transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
+          // When isNew, the keyframe owns the transform; after that we set it explicitly
+          transform: sticker.isNew ? undefined : `translate(-50%, -50%) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
           transformOrigin: "center center",
           userSelect: "none",
           touchAction: "none",
           zIndex: isSelected ? 20 : 10,
+          // CSS custom props consumed by drank-sticker-pop keyframe
+          ["--sticker-rotation" as string]: `${sticker.rotation}deg`,
+          ["--sticker-scale" as string]: sticker.scale,
         }}
         onMouseDown={handleDragStart}
         onTouchStart={handleDragStart}

@@ -41,7 +41,7 @@ export default function DrankApp() {
   const [image, setImage] = useState<string | null>(null)
   const [receiptData, setReceiptData] = useState<ReceiptData>(defaultReceiptData)
   const [stickers, setStickers] = useState<StickerItem[]>([])
-  const [receiptId, setReceiptId] = useState(() => generateId())
+  const [receiptId] = useState(() => generateId())
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null)
@@ -61,16 +61,12 @@ export default function DrankApp() {
       const saved: SavedReceipt = JSON.parse(raw)
 
       const {
-        id: savedId,
         cafeName, drinkName, rating, comments, location, date, time,
         iceTemp, iceLevel, otherIceLevel, sugarLevel, otherSugarLevel,
         milk, otherMilk, toppings, otherCustomizations,
         imageDataUrl,
         receiptStickers, storyStickers, showDrinkSticker, bgRemovedImageDataUrl,
       } = saved
-
-      // Restore the original ID so saving overwrites the same record
-      if (savedId) setReceiptId(savedId)
 
       const restoredData: ReceiptData = {
         cafeName: cafeName ?? "",
@@ -219,40 +215,46 @@ export default function DrankApp() {
       {/* Step content */}
       <div className="flex min-h-0 flex-1 flex-col">
         {step === 1 && (
-          <UploadStep
-            image={image}
-            onImageUpload={handleImageUpload}
-            onNext={() => { stampDate(); setStep(2) }}
-            onSkip={() => { stampDate(); setStep(2) }}
-          />
+          <div className="drank-step-in flex min-h-0 flex-1 flex-col">
+            <UploadStep
+              image={image}
+              onImageUpload={handleImageUpload}
+              onNext={() => { stampDate(); setStep(2) }}
+              onSkip={() => { stampDate(); setStep(2) }}
+            />
+          </div>
         )}
 
         {step === 2 && (
-          <DecorateStep
-            data={receiptData}
-            image={image}
-            stickers={stickers}
-            onStickersChange={setStickers}
-            onUpdate={handleReceiptUpdate}
-            onNext={handleEnterShare}
-            onBack={() => setStep(1)}
-          />
+          <div className="drank-step-in flex min-h-0 flex-1 flex-col">
+            <DecorateStep
+              data={receiptData}
+              image={image}
+              stickers={stickers}
+              onStickersChange={setStickers}
+              onUpdate={handleReceiptUpdate}
+              onNext={handleEnterShare}
+              onBack={() => setStep(1)}
+            />
+          </div>
         )}
 
         {step === 3 && (
-          <ShareStep
-            data={receiptData}
-            image={image}
-            stickers={stickers}
-            receiptId={receiptId}
-            onReset={handleReset}
-            onBack={() => setStep(2)}
-            onImageUpload={handleImageUpload}
-            initialReceiptStickers={initialReceiptStickers}
-            initialStoryStickers={initialStoryStickers}
-            initialShowDrinkSticker={initialShowDrinkSticker}
-            initialBgRemovedImage={initialBgRemovedImage}
-          />
+          <div className="drank-step-in flex min-h-0 flex-1 flex-col">
+            <ShareStep
+              data={receiptData}
+              image={image}
+              stickers={stickers}
+              receiptId={receiptId}
+              onReset={handleReset}
+              onBack={() => setStep(2)}
+              onImageUpload={handleImageUpload}
+              initialReceiptStickers={initialReceiptStickers}
+              initialStoryStickers={initialStoryStickers}
+              initialShowDrinkSticker={initialShowDrinkSticker}
+              initialBgRemovedImage={initialBgRemovedImage}
+            />
+          </div>
         )}
       </div>
 
