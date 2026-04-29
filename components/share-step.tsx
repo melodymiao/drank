@@ -86,7 +86,7 @@ interface SelectionRect {
 
 // Receipt constants — single source of truth used by both preview and canvas export
 const RECEIPT_BG = "rgba(254,252,244,0.9)"
-const RECEIPT_RADIUS = 2
+const RECEIPT_RADIUS = 8
 const TEXT_COLOR = "#473C23"
 
 export function ShareStep({
@@ -866,7 +866,7 @@ function InteractiveCanvas({
             src={storyReceiptUrl}
             alt="receipt"
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ width: "70%", display: "block", borderRadius: 4, opacity: 0.9 }}
+            style={{ width: "70%", display: "block", borderRadius: 8, opacity: 0.9 }}
             draggable={false}
           />
         )}

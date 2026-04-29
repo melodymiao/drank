@@ -483,26 +483,19 @@ interface ListItemProps {
 }
 
 function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
-  const [showDeleteBtn, setShowDeleteBtn] = useState(false)
-  // Desktop context menu position (fixed coords at cursor)
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const rowRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const isDesktop = () => typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches
 
-  // Close inline button or desktop menu when clicking/tapping outside
+  // Close desktop menu when clicking outside
   useEffect(() => {
-    if (!showDeleteBtn && !menuPos) return
+    if (!menuPos) return
     function handleOutside(e: MouseEvent | TouchEvent) {
       const target = e instanceof TouchEvent ? e.touches[0]?.target : (e.target as Node)
       if (!target) return
-      // For desktop menu, check against the floating menu element
       if (menuRef.current?.contains(target as Node)) return
-      // For mobile inline button, check against the row
-      if (rowRef.current?.contains(target as Node) && !menuPos) return
-      setShowDeleteBtn(false)
       setMenuPos(null)
     }
     document.addEventListener("mousedown", handleOutside)
@@ -511,22 +504,15 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
       document.removeEventListener("mousedown", handleOutside)
       document.removeEventListener("touchstart", handleOutside)
     }
-  }, [showDeleteBtn, menuPos])
+  }, [menuPos])
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
-    if (isDesktop()) {
-      setMenuPos({ x: e.clientX, y: e.clientY })
-      setShowDeleteBtn(false)
-    } else {
-      setShowDeleteBtn(true)
-      setMenuPos(null)
-    }
+    setMenuPos({ x: e.clientX, y: e.clientY })
   }
 
   const triggerDelete = (e: React.MouseEvent) => {
     e.stopPropagation()
-    setShowDeleteBtn(false)
     setMenuPos(null)
     setConfirmDelete(true)
   }
@@ -553,7 +539,7 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
                 src={thumb}
                 alt={receipt.drinkName}
                 className={cn(
-                  "size-20 shrink-0",
+                  "size-20 shrink-0 rounded-sm",
                   receipt.bgRemovedImageDataUrl ? "object-contain" : "object-cover"
                 )}
               />
@@ -581,19 +567,6 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
           </div>
         </button>
 
-        {/* Mobile inline delete button — slides in over the right edge of the row */}
-        {showDeleteBtn && (
-          <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-            <button
-              onClick={triggerDelete}
-              className="flex items-center justify-center rounded-lg p-2.5 transition-opacity hover:opacity-80"
-              style={{ backgroundColor: "#F1C5BE" }}
-              aria-label="Delete receipt"
-            >
-              <Trash2 className="size-4" style={{ color: "#E85B5B" }} />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Desktop context menu — fixed, anchored below the row's left edge */}

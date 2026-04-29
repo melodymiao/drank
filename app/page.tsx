@@ -8,9 +8,9 @@ import { StepIndicator } from "@/components/step-indicator"
 import { UploadStep } from "@/components/upload-step"
 import { DecorateStep, type ReceiptData, type StickerItem } from "@/components/decorate-step"
 import { ShareStep } from "@/components/share-step"
-import { NavDrawer, HamburgerButton } from "@/components/ui/nav-drawer"
+import { NavDrawer, HamburgerButton, DesktopNav } from "@/components/ui/nav-drawer"
 import { Button } from "@/components/ui/button"
-import { saveReceipt, saveReceiptEdit, type SavedReceipt } from "@/lib/receipt-store"
+import { saveReceipt } from "@/lib/receipt-store"
 
 const defaultReceiptData: ReceiptData = {
   cafeName: "",
@@ -35,51 +35,13 @@ function generateId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-/** Reads and clears the edit receipt from sessionStorage. Returns null if absent. */
-function popEditReceipt(): SavedReceipt | null {
-  try {
-    const raw = sessionStorage.getItem("drank_edit_receipt")
-    if (!raw) return null
-    sessionStorage.removeItem("drank_edit_receipt")
-    return JSON.parse(raw) as SavedReceipt
-  } catch {
-    return null
-  }
-}
-
 export default function DrankApp() {
   const router = useRouter()
-
-  // Restore from edit if present — runs once on first render via lazy initializer
-  const [editReceipt] = useState<SavedReceipt | null>(() => popEditReceipt())
-
-  const [step, setStep] = useState(() => (editReceipt ? 2 : 1))
-  const [image, setImage] = useState<string | null>(() => editReceipt?.imageDataUrl ?? null)
-  const [receiptData, setReceiptData] = useState<ReceiptData>(() =>
-    editReceipt
-      ? {
-          cafeName: editReceipt.cafeName,
-          drinkName: editReceipt.drinkName,
-          rating: editReceipt.rating,
-          comments: editReceipt.comments,
-          location: editReceipt.location,
-          date: editReceipt.date,
-          time: editReceipt.time,
-          iceTemp: editReceipt.iceTemp,
-          iceLevel: editReceipt.iceLevel,
-          otherIceLevel: editReceipt.otherIceLevel,
-          sugarLevel: editReceipt.sugarLevel,
-          otherSugarLevel: editReceipt.otherSugarLevel,
-          milk: editReceipt.milk,
-          otherMilk: editReceipt.otherMilk,
-          toppings: editReceipt.toppings,
-          otherCustomizations: editReceipt.otherCustomizations,
-        }
-      : defaultReceiptData
-  )
+  const [step, setStep] = useState(1)
+  const [image, setImage] = useState<string | null>(null)
+  const [receiptData, setReceiptData] = useState<ReceiptData>(defaultReceiptData)
   const [stickers, setStickers] = useState<StickerItem[]>([])
-  // Use the existing receipt id when editing so the re-save overwrites the original
-  const [receiptId] = useState(() => editReceipt?.id ?? generateId())
+  const [receiptId] = useState(() => generateId())
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null)
@@ -139,16 +101,9 @@ export default function DrankApp() {
       data = { ...data, date: `${y}-${m}-${d}`, time: now.toTimeString().slice(0, 5) }
       setReceiptData(data)
     }
-    try {
-      if (editReceipt) {
-        // Re-save using existing media — no re-compression
-        saveReceiptEdit(editReceipt, data)
-      } else {
-        await saveReceipt(receiptId, data, image)
-      }
-    } catch { /* non-critical */ }
+    try { await saveReceipt(receiptId, data, image) } catch { /* non-critical */ }
     setStep(3)
-  }, [receiptId, receiptData, image, editReceipt])
+  }, [receiptId, receiptData, image])
 
   const stampDate = useCallback(() => {
     if (receiptData.date) return
@@ -191,15 +146,9 @@ export default function DrankApp() {
           />
         </Link>
 
-        {/* Desktop: history link right. Mobile: hidden (lives in drawer). */}
+        {/* Desktop: nav links right. Mobile: hidden (lives in drawer). */}
         <div className="absolute right-4 hidden md:block">
-          <Link
-            href="/history"
-            onClick={(e) => { if (step === 2) { e.preventDefault(); setLeaveTarget("/history") } }}
-            className="font-sans text-sm text-green-dark transition-colors hover:opacity-70"
-          >
-            History
-          </Link>
+          <DesktopNav onNavigate={handleNavRequest} />
         </div>
       </header>
 
@@ -240,10 +189,6 @@ export default function DrankApp() {
             onReset={handleReset}
             onBack={() => setStep(2)}
             onImageUpload={handleImageUpload}
-            initialReceiptStickers={editReceipt?.receiptStickers ?? undefined}
-            initialStoryStickers={editReceipt?.storyStickers ?? undefined}
-            initialShowDrinkSticker={editReceipt?.showDrinkSticker ?? undefined}
-            initialBgRemovedImage={editReceipt?.bgRemovedImageDataUrl ?? undefined}
           />
         )}
       </div>

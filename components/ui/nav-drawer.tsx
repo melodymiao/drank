@@ -151,18 +151,27 @@ export function NavDrawer({ open, onClose, onNavigate }: NavDrawerProps) {
 /* ─────────────────────────────────────────────────────────────
    DesktopNav — horizontal inline links for page headers
 ─────────────────────────────────────────────────────────────── */
-export function DesktopNav() {
+export function DesktopNav({ onNavigate }: { onNavigate?: (href: string) => boolean }) {
   const pathname = usePathname()
+
+  const handleClick = (e: React.MouseEvent, href: string) => {
+    if (!onNavigate) return
+    const ok = onNavigate(href)
+    if (!ok) e.preventDefault()
+  }
+
   return (
     <nav className="hidden items-center gap-4 md:flex">
       <Link
         href="/"
+        onClick={(e) => handleClick(e, "/")}
         className="font-sans text-sm text-green-dark transition-colors hover:opacity-70"
       >
         Rank
       </Link>
       <Link
         href="/history"
+        onClick={(e) => handleClick(e, "/history")}
         className="font-sans text-sm text-green-dark transition-colors hover:opacity-70"
       >
         History
