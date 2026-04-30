@@ -49,54 +49,62 @@ function CupPlaceholder({ className }: { className?: string }) {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Stats bar — scrollable on mobile, fills width on desktop
+   Stats bar — flat cards spanning full width, animate in on mount
 ─────────────────────────────────────────────────────────────── */
-// Alternating tilt patterns: L/R/L or R/L/R, decided randomly each mount.
-const TILT_PATTERNS = [
-  [-1,  1, -1],  // left, right, left
-  [ 1, -1,  1],  // right, left, right
-]
+
+function useCountUp(target: number | null, duration = 600): number | null {
+  const [value, setValue] = useState<number | null>(null)
+  useEffect(() => {
+    if (target === null) { setValue(null); return }
+    const start = Date.now()
+    const tick = () => {
+      const elapsed = Date.now() - start
+      const progress = Math.min(elapsed / duration, 1)
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setValue(Math.round(target * eased * 10) / 10)
+      if (progress < 1) requestAnimationFrame(tick)
+      else setValue(target)
+    }
+    requestAnimationFrame(tick)
+  }, [target, duration])
+  return value
+}
 
 function StatsBar() {
   const [stats, setStats] = useState({ avgScore: null as number | null, uniqueCafes: 0, uniqueCities: 0 })
-
-  // Start neutral during SSR — populated after mount to avoid hydration mismatch.
-  const [transforms, setTransforms] = useState<Array<{ rotate: number; translateY: number }>>([
-    { rotate: 0, translateY: 0 },
-    { rotate: 0, translateY: 0 },
-    { rotate: 0, translateY: 0 },
-  ])
+  const [visible, setVisible] = useState(false)
 
   useEffect(() => {
     const s = getStats()
     setStats({ avgScore: s.avgScore, uniqueCafes: s.uniqueCafes, uniqueCities: s.uniqueCities })
-
-    // Pick a random alternating pattern (L/R/L or R/L/R)
-    const signs = TILT_PATTERNS[Math.random() < 0.5 ? 0 : 1]
-    setTransforms(signs.map((sign) => ({
-      rotate: sign * (1.5 + Math.random() * 2),
-      translateY: Math.random() * 6,
-    })))
+    // Small delay so the slide-up feels intentional
+    const t = setTimeout(() => setVisible(true), 60)
+    return () => clearTimeout(t)
   }, [])
 
+  const animAvg = useCountUp(stats.avgScore, 700)
+  const animCafes = useCountUp(stats.uniqueCafes, 600)
+  const animCities = useCountUp(stats.uniqueCities, 650)
+
   const items = [
-    { label: "avg score", value: stats.avgScore !== null ? stats.avgScore.toFixed(1) : "—", bg: "#F884A3", border: "#e06a8a" },
-    { label: "cafés",     value: stats.uniqueCafes,  bg: "#E0DE96", border: "#b8b65a" },
-    { label: "cities",    value: stats.uniqueCities,  bg: "#9BCFEC", border: "#68a9cc" },
+    { label: "avg score", value: animAvg !== null ? animAvg.toFixed(1) : "—", bg: "#F884A3", border: "#e06a8a" },
+    { label: "cafés",     value: animCafes !== null ? String(Math.round(animCafes)) : "0",  bg: "#E0DE96", border: "#b8b65a" },
+    { label: "cities",    value: animCities !== null ? String(Math.round(animCities)) : "0", bg: "#9BCFEC", border: "#68a9cc" },
   ]
 
   return (
-    // py-3 gives rotated cards room to breathe without clipping into header or sibling rows
-    <div className="flex gap-3 overflow-y-visible px-1 py-3">
+    <div className="flex gap-3">
       {items.map(({ label, value, bg, border }, i) => (
         <div
           key={label}
-          className="flex min-w-0 flex-1 flex-col items-center rounded-xl px-4 py-6"
+          className="flex min-w-0 flex-1 flex-col items-center rounded-xl px-4 py-5"
           style={{
             backgroundColor: bg,
             border: `1.5px solid ${border}`,
-            transform: `rotate(${transforms[i].rotate}deg) translateY(${transforms[i].translateY}px)`,
-            transition: "transform 0.2s ease",
+            opacity: visible ? 1 : 0,
+            transform: visible ? "translateY(0)" : "translateY(8px)",
+            transition: `opacity 0.35s ease ${i * 60}ms, transform 0.35s ease ${i * 60}ms`,
           }}
         >
           <span className="font-mono text-lg font-medium leading-tight text-[#473C23]">{value}</span>

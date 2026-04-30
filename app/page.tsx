@@ -41,7 +41,7 @@ export default function DrankApp() {
   const [image, setImage] = useState<string | null>(null)
   const [receiptData, setReceiptData] = useState<ReceiptData>(defaultReceiptData)
   const [stickers, setStickers] = useState<StickerItem[]>([])
-  const [receiptId] = useState(() => generateId())
+  const [receiptId, setReceiptId] = useState(() => generateId())
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null)
@@ -93,6 +93,9 @@ export default function DrankApp() {
       setInitialStoryStickers(storyStickers ?? [])
       setInitialShowDrinkSticker(showDrinkSticker ?? false)
       if (bgRemovedImageDataUrl) setInitialBgRemovedImage(bgRemovedImageDataUrl)
+
+      // Use the original receipt's id so saving overwrites it rather than creating a duplicate
+      setReceiptId(saved.id)
 
       // Jump straight to rank/decorate step (step 2)
       setStep(2)

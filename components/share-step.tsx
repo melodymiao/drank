@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import type { ReceiptData, StickerItem } from "@/components/decorate-step"
 import { removeBackground } from "@imgly/background-removal"
 import { ERRORS, pickError } from "@/lib/errors"
-import { updateReceipt, resizeImage, type StoredSticker } from "@/lib/receipt-store"
+import { updateReceipt, resizeImage, getStorageStatus, type StoredSticker } from "@/lib/receipt-store"
 
 /* ============================================================
    Rotating Loading Message
@@ -185,6 +185,8 @@ export function ShareStep({
   const [activeTab, setActiveTab] = useState<"story" | "receipt">(image ? "story" : "receipt")
   const [hasSaved, setHasSaved] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [toastVariant, setToastVariant] = useState<"success" | "error">("success")
+  const [showStorageInfo, setShowStorageInfo] = useState(false)
 
   // Separate sticker arrays for each canvas — restored from edit if available
   const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>(
@@ -360,22 +362,46 @@ export function ShareStep({
 
     const isFirstSave = !hasSaved
 
-    // Always store the receipt canvas as the history preview — 0 = no drink sticker, 1 = with drink sticker
-    const priority = showDrinkSticker ? 1 : 0
+    // Check storage before attempting — warn if near capacity
+    const storageStatus = getStorageStatus()
+    let savedToHistory = true
 
-    updateReceipt(receiptId, {
-      receiptStickers,
-      storyStickers,
-      showDrinkSticker,
-      // Always use the receipt canvas for the history preview, regardless of active tab
-      savedCanvasDataUrl: receiptUrl ?? url,
-      savedCanvasPriority: priority,
-      ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
-    })
-    setHasSaved(true)
-    const msg = isFirstSave ? "Saved to drank history" : "Drank history updated"
-    setToastMessage(msg)
-    setTimeout(() => setToastMessage(null), 3000)
+    if (storageStatus.level === "critical") {
+      // Don't even attempt — it will fail
+      savedToHistory = false
+    } else {
+      // Try to save; catch quota errors
+      try {
+        const priority = showDrinkSticker ? 1 : 0
+        updateReceipt(receiptId, {
+          receiptStickers,
+          storyStickers,
+          showDrinkSticker,
+          savedCanvasDataUrl: receiptUrl ?? url,
+          savedCanvasPriority: priority,
+          ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
+        })
+        setHasSaved(true)
+      } catch {
+        savedToHistory = false
+      }
+    }
+
+    if (savedToHistory) {
+      const msg = isFirstSave ? "Saved to drank history" : "Drank history updated"
+      setToastVariant("success")
+      setToastMessage(msg)
+    } else {
+      // Storage full — show error toast but still allow download/share
+      const errorMessages = [
+        "not enough storage to save to history",
+        "delete old receipts to save to history",
+      ]
+      setToastVariant("error")
+      setToastMessage(errorMessages[Math.floor(Math.random() * errorMessages.length)])
+    }
+    setShowStorageInfo(false)
+    setTimeout(() => { setToastMessage(null); setShowStorageInfo(false) }, 5000)
 
     const drinkSlug = data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"
     const filename = activeTab === "story"
@@ -604,18 +630,48 @@ export function ShareStep({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
-      {/* Toast notification — clickable link to history */}
+      {/* Toast notification */}
       {toastMessage && (
-        <a
-          href="/history"
-          className="fixed left-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity hover:opacity-80"
-          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
+        <div
+          className={cn(
+            "fixed left-4 top-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col gap-1.5 rounded-lg px-4 py-2.5 shadow-lg transition-opacity",
+            toastVariant === "error"
+              ? "bg-red-50 border border-red-200"
+              : "bg-green-light"
+          )}
+          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 4.6s forwards" }}
         >
-          <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-green-dark opacity-60">
-            <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </a>
+          <div className="flex items-center gap-2">
+            {toastVariant === "success" ? (
+              <a
+                href="/history"
+                className="flex items-center gap-2 hover:opacity-80"
+                style={{ textDecoration: "none" }}
+              >
+                <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-green-dark opacity-60">
+                  <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </a>
+            ) : (
+              <>
+                <p className="font-mono text-xs text-red-600">{toastMessage}</p>
+                <button
+                  onClick={() => setShowStorageInfo((v) => !v)}
+                  className="flex size-4 shrink-0 items-center justify-center rounded-full border border-red-300 font-mono text-[10px] text-red-400 transition-colors hover:border-red-400 hover:text-red-500"
+                  aria-label="More info"
+                >
+                  i
+                </button>
+              </>
+            )}
+          </div>
+          {toastVariant === "error" && showStorageInfo && (
+            <p className="font-sans text-[11px] leading-snug text-red-500">
+              thanks for trying drank! your storage limit is being reached (but i&apos;m working on increasing this). you can still save receipts to your device.
+            </p>
+          )}
+        </div>
       )}
 
       {/* Hidden canvases for export */}

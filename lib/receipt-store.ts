@@ -95,6 +95,8 @@ export interface SavedReceipt {
 const STORAGE_KEY = "drank_receipts"
 /** Soft-warn when localStorage usage exceeds this fraction */
 const STORAGE_WARN_THRESHOLD = 0.8
+/** Hard-fail threshold — above this, saves will likely throw QuotaExceededError */
+const STORAGE_CRITICAL_THRESHOLD = 0.95
 
 /* ─────────────────────────────────────────────────────────────
    Internal helpers
@@ -267,6 +269,28 @@ export function updateReceipt(
 
 export type ReceiptSortBy = "rating" | "latest"
 export type ReceiptSortDir = "asc" | "desc"
+
+/**
+ * Returns the current localStorage usage fraction (0–1).
+ * "warn" = approaching full (>80%), "critical" = nearly full (>95%), "ok" = fine.
+ */
+export function getStorageStatus(): { fraction: number; level: "ok" | "warn" | "critical" } {
+  try {
+    let total = 0
+    for (const key of Object.keys(localStorage)) {
+      total += (localStorage.getItem(key)?.length ?? 0) * 2
+    }
+    const fraction = total / (5 * 1024 * 1024)
+    const level = fraction > STORAGE_CRITICAL_THRESHOLD
+      ? "critical"
+      : fraction > STORAGE_WARN_THRESHOLD
+      ? "warn"
+      : "ok"
+    return { fraction, level }
+  } catch {
+    return { fraction: 0, level: "ok" }
+  }
+}
 
 /**
  * Returns all receipts sorted by the given field and direction.
