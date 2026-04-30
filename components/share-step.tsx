@@ -187,6 +187,9 @@ export function ShareStep({
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [toastVariant, setToastVariant] = useState<"success" | "error">("success")
   const [showStorageInfo, setShowStorageInfo] = useState(false)
+  const [saveWithoutPhoto, setSaveWithoutPhoto] = useState(false)
+  // True when storage is warn/critical AND the receipt has a photo — triggers opt-in UI
+  const [storageNeedsAttention, setStorageNeedsAttention] = useState(false)
 
   // Separate sticker arrays for each canvas — restored from edit if available
   const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>(
@@ -199,6 +202,15 @@ export function ShareStep({
 
   const activeStickers = activeTab === "receipt" ? receiptStickers : storyStickers
   const setActiveStickers = activeTab === "receipt" ? setReceiptStickers : setStoryStickers
+
+  // Check storage on mount — show "save without photo" option when near capacity and a photo exists
+  useEffect(() => {
+    if (!image) return
+    const { level } = getStorageStatus()
+    if (level === "warn" || level === "critical") {
+      setStorageNeedsAttention(true)
+    }
+  }, [])
 
   // Generate images when data or sticker toggle changes
   useEffect(() => {
@@ -377,11 +389,19 @@ export function ShareStep({
           receiptStickers,
           storyStickers,
           showDrinkSticker,
-          savedCanvasDataUrl: receiptUrl ?? url,
-          savedCanvasPriority: priority,
-          ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
+          savedCanvasDataUrl: saveWithoutPhoto ? null : (receiptUrl ?? url),
+          savedCanvasPriority: saveWithoutPhoto ? -1 : priority,
+          ...(bgRemovedImage && !saveWithoutPhoto ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
+          // Strip photo fields when user opts out — silently shows cup placeholder in history
+          ...(saveWithoutPhoto ? {
+            imageDataUrl: null,
+            thumbnailDataUrl: null,
+            bgRemovedImageDataUrl: null,
+          } : {}),
         })
         setHasSaved(true)
+        // Once saved without photo, the photo is gone from history — hide the toggle
+        if (saveWithoutPhoto) setStorageNeedsAttention(false)
       } catch {
         savedToHistory = false
       }
@@ -428,7 +448,7 @@ export function ShareStep({
     link.download = filename
     link.href = url
     link.click()
-  }, [activeTab, storyUrl, receiptUrl, hasSaved, receiptId, receiptStickers, storyStickers, showDrinkSticker, bgRemovedImage, data.drinkName])
+  }, [activeTab, storyUrl, receiptUrl, hasSaved, receiptId, receiptStickers, storyStickers, showDrinkSticker, bgRemovedImage, data.drinkName, saveWithoutPhoto])
   
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -628,6 +648,27 @@ export function ShareStep({
     </div>
   )
 
+  // Shown near save button when storage is warn/critical and a photo exists
+  const SaveWithoutPhotoToggle = storageNeedsAttention && image ? (
+    <label className="flex cursor-pointer items-center gap-2">
+      <div
+        role="switch"
+        aria-checked={saveWithoutPhoto}
+        onClick={() => setSaveWithoutPhoto((v) => !v)}
+        className={cn(
+          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors",
+          saveWithoutPhoto ? "bg-[#727025]" : "bg-muted"
+        )}
+      >
+        <span className={cn(
+          "pointer-events-none block size-4 rounded-full bg-white shadow transition-transform",
+          saveWithoutPhoto ? "translate-x-4" : "translate-x-0"
+        )} />
+      </div>
+      <span className="font-sans text-xs text-muted-foreground">save without photo</span>
+    </label>
+  ) : null
+
   return (
     <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
       {/* Toast notification */}
@@ -766,6 +807,9 @@ export function ShareStep({
               >
                 {activeTab === "story" ? "Save Story" : "Save Receipt"}
               </Button>
+              {SaveWithoutPhotoToggle && (
+                <div className="mt-2">{SaveWithoutPhotoToggle}</div>
+              )}
             </div>
 
             {/* Mobile-only: drink sticker control — pt-4 keeps it off the canvas above */}
@@ -828,6 +872,9 @@ export function ShareStep({
 
       {/* Mobile fixed bottom bar — Save only */}
       <div className="fixed inset-x-0 bottom-0 z-20 p-4 md:hidden">
+        {SaveWithoutPhotoToggle && (
+          <div className="mb-2 flex justify-center">{SaveWithoutPhotoToggle}</div>
+        )}
         <Button
           size="lg"
           className="w-full bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
