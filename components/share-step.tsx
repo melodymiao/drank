@@ -185,11 +185,6 @@ export function ShareStep({
   const [activeTab, setActiveTab] = useState<"story" | "receipt">(image ? "story" : "receipt")
   const [hasSaved, setHasSaved] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
-  const [toastVariant, setToastVariant] = useState<"success" | "error">("success")
-  const [showStorageInfo, setShowStorageInfo] = useState(false)
-  const [saveWithoutPhoto, setSaveWithoutPhoto] = useState(false)
-  // True when storage is warn/critical AND the receipt has a photo — triggers opt-in UI
-  const [storageNeedsAttention, setStorageNeedsAttention] = useState(false)
 
   // Separate sticker arrays for each canvas — restored from edit if available
   const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>(
@@ -202,15 +197,6 @@ export function ShareStep({
 
   const activeStickers = activeTab === "receipt" ? receiptStickers : storyStickers
   const setActiveStickers = activeTab === "receipt" ? setReceiptStickers : setStoryStickers
-
-  // Check storage on mount — show "save without photo" option when near capacity and a photo exists
-  useEffect(() => {
-    if (!image) return
-    const { level } = getStorageStatus()
-    if (level === "warn" || level === "critical") {
-      setStorageNeedsAttention(true)
-    }
-  }, [])
 
   // Generate images when data or sticker toggle changes
   useEffect(() => {
@@ -368,60 +354,37 @@ export function ShareStep({
     setShowSelectionModal(true)
   }, [])
 
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3000)
+  }, [])
+
   const handleSave = useCallback(async () => {
     const url = activeTab === "story" ? storyUrl : receiptUrl
     if (!url) return
 
     const isFirstSave = !hasSaved
-
-    // Check storage before attempting — warn if near capacity
     const storageStatus = getStorageStatus()
-    let savedToHistory = true
 
-    if (storageStatus.level === "critical") {
-      // Don't even attempt — it will fail
-      savedToHistory = false
-    } else {
-      // Try to save; catch quota errors
+    if (storageStatus.level !== "critical") {
       try {
         const priority = showDrinkSticker ? 1 : 0
         updateReceipt(receiptId, {
           receiptStickers,
           storyStickers,
           showDrinkSticker,
-          savedCanvasDataUrl: saveWithoutPhoto ? null : (receiptUrl ?? url),
-          savedCanvasPriority: saveWithoutPhoto ? -1 : priority,
-          ...(bgRemovedImage && !saveWithoutPhoto ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
-          // Strip photo fields when user opts out — silently shows cup placeholder in history
-          ...(saveWithoutPhoto ? {
-            imageDataUrl: null,
-            thumbnailDataUrl: null,
-            bgRemovedImageDataUrl: null,
-          } : {}),
+          savedCanvasDataUrl: receiptUrl ?? url,
+          savedCanvasPriority: priority,
+          ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
         })
         setHasSaved(true)
-        // Once saved without photo, the photo is gone from history — hide the toggle
-        if (saveWithoutPhoto) setStorageNeedsAttention(false)
+        showToast(isFirstSave ? "Saved to drank history" : "Drank history updated")
       } catch {
-        savedToHistory = false
+        showToast("not enough storage to save to history")
       }
-    }
-
-    if (savedToHistory) {
-      const msg = isFirstSave ? "Saved to drank history" : "Drank history updated"
-      setToastVariant("success")
-      setToastMessage(msg)
     } else {
-      // Storage full — show error toast but still allow download/share
-      const errorMessages = [
-        "not enough storage to save to history",
-        "delete old receipts to save to history",
-      ]
-      setToastVariant("error")
-      setToastMessage(errorMessages[Math.floor(Math.random() * errorMessages.length)])
+      showToast("not enough storage to save to history")
     }
-    setShowStorageInfo(false)
-    setTimeout(() => { setToastMessage(null); setShowStorageInfo(false) }, 5000)
 
     const drinkSlug = data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"
     const filename = activeTab === "story"
@@ -448,7 +411,26 @@ export function ShareStep({
     link.download = filename
     link.href = url
     link.click()
-  }, [activeTab, storyUrl, receiptUrl, hasSaved, receiptId, receiptStickers, storyStickers, showDrinkSticker, bgRemovedImage, data.drinkName, saveWithoutPhoto])
+  }, [activeTab, storyUrl, receiptUrl, hasSaved, receiptId, receiptStickers, storyStickers, showDrinkSticker, bgRemovedImage, data.drinkName, showToast])
+
+  const handleSaveWithoutPhoto = useCallback(() => {
+    try {
+      updateReceipt(receiptId, {
+        receiptStickers,
+        storyStickers,
+        showDrinkSticker: false,
+        savedCanvasDataUrl: null,
+        savedCanvasPriority: -1,
+        imageDataUrl: null,
+        thumbnailDataUrl: null,
+        bgRemovedImageDataUrl: null,
+      })
+      setHasSaved(true)
+      showToast("receipt updated")
+    } catch {
+      showToast("not enough storage to save to history")
+    }
+  }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, showToast])
   
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -648,71 +630,41 @@ export function ShareStep({
     </div>
   )
 
-  // Shown near save button when storage is warn/critical and a photo exists
-  const SaveWithoutPhotoToggle = storageNeedsAttention && image ? (
-    <label className="flex cursor-pointer items-center gap-2">
-      <div
-        role="switch"
-        aria-checked={saveWithoutPhoto}
-        onClick={() => setSaveWithoutPhoto((v) => !v)}
-        className={cn(
-          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors",
-          saveWithoutPhoto ? "bg-[#727025]" : "bg-muted"
-        )}
+  // Shown above the sticker panel whenever a photo exists
+  const SaveWithoutPhotoBanner = image ? (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-[#9BCFEC] bg-[#EAF6FD] px-4 py-3">
+      <p className="font-sans text-xs leading-snug text-[#2a6d8a]">
+        save to history without photo to free up storage
+      </p>
+      <button
+        onClick={handleSaveWithoutPhoto}
+        className="shrink-0 rounded-full border border-[#9BCFEC] bg-white px-3 py-1.5 font-mono text-xs text-[#2a6d8a] transition-colors hover:bg-[#9BCFEC]/20 active:scale-95"
       >
-        <span className={cn(
-          "pointer-events-none block size-4 rounded-full bg-white shadow transition-transform",
-          saveWithoutPhoto ? "translate-x-4" : "translate-x-0"
-        )} />
-      </div>
-      <span className="font-sans text-xs text-muted-foreground">save without photo</span>
-    </label>
+        save without photo
+      </button>
+    </div>
   ) : null
 
   return (
     <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
       {/* Toast notification */}
       {toastMessage && (
-        <div
+        <a
+          href={toastMessage.includes("history") ? "/history" : undefined}
           className={cn(
-            "fixed left-4 top-4 z-50 flex max-w-[calc(100vw-2rem)] flex-col gap-1.5 rounded-lg px-4 py-2.5 shadow-lg transition-opacity",
-            toastVariant === "error"
-              ? "bg-red-50 border border-red-200"
-              : "bg-green-light"
+            "fixed left-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
+            toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
           )}
-          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 4.6s forwards" }}
+          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
+          onClick={toastMessage.includes("history") ? undefined : (e) => e.preventDefault()}
         >
-          <div className="flex items-center gap-2">
-            {toastVariant === "success" ? (
-              <a
-                href="/history"
-                className="flex items-center gap-2 hover:opacity-80"
-                style={{ textDecoration: "none" }}
-              >
-                <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-green-dark opacity-60">
-                  <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </a>
-            ) : (
-              <>
-                <p className="font-mono text-xs text-red-600">{toastMessage}</p>
-                <button
-                  onClick={() => setShowStorageInfo((v) => !v)}
-                  className="flex size-4 shrink-0 items-center justify-center rounded-full border border-red-300 font-mono text-[10px] text-red-400 transition-colors hover:border-red-400 hover:text-red-500"
-                  aria-label="More info"
-                >
-                  i
-                </button>
-              </>
-            )}
-          </div>
-          {toastVariant === "error" && showStorageInfo && (
-            <p className="font-sans text-[11px] leading-snug text-red-500">
-              thanks for trying drank! your storage limit is being reached (but i&apos;m working on increasing this). you can still save receipts to your device.
-            </p>
+          <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
+          {toastMessage.includes("history") && (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-green-dark opacity-60">
+              <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           )}
-        </div>
+        </a>
       )}
 
       {/* Hidden canvases for export */}
@@ -807,9 +759,6 @@ export function ShareStep({
               >
                 {activeTab === "story" ? "Save Story" : "Save Receipt"}
               </Button>
-              {SaveWithoutPhotoToggle && (
-                <div className="mt-2">{SaveWithoutPhotoToggle}</div>
-              )}
             </div>
 
             {/* Mobile-only: drink sticker control — pt-4 keeps it off the canvas above */}
@@ -843,6 +792,9 @@ export function ShareStep({
                 </button>
               </div>
 
+              {/* Save without photo banner — shown whenever a photo exists */}
+              {SaveWithoutPhotoBanner}
+
               {/* Stickers panel - single responsive wrapping group */}
               <div className="rounded-xl border border-border bg-card p-4">
                 <p className="mb-3 text-center font-sans text-xs text-muted-foreground">
@@ -872,9 +824,6 @@ export function ShareStep({
 
       {/* Mobile fixed bottom bar — Save only */}
       <div className="fixed inset-x-0 bottom-0 z-20 p-4 md:hidden">
-        {SaveWithoutPhotoToggle && (
-          <div className="mb-2 flex justify-center">{SaveWithoutPhotoToggle}</div>
-        )}
         <Button
           size="lg"
           className="w-full bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
