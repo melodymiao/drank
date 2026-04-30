@@ -634,13 +634,15 @@ export function ShareStep({
   const SaveWithoutPhotoBanner = image ? (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-[#9BCFEC] bg-[#EAF6FD] px-4 py-3">
       <p className="font-sans text-xs leading-snug text-[#2a6d8a]">
-        Store in drank history without photo to free up storage
+        save to{" "}
+        <a href="/history" className="underline hover:opacity-70">drank history</a>
+        {" "}without photo to free up storage
       </p>
       <button
         onClick={handleSaveWithoutPhoto}
-        className="shrink-0 rounded-full bg-[#4a9ab5] px-4 py-2.5 font-mono text-xs font-medium text-[#0e2d38] transition-opacity hover:opacity-80 active:scale-95"
+        className="shrink-0 rounded-full border border-[#9BCFEC] bg-[#9BCFEC] px-4 py-2.5 font-mono text-xs text-foreground transition-opacity hover:opacity-80 active:scale-95"
       >
-        Store Without Photo
+        save without photo
       </button>
     </div>
   ) : null
