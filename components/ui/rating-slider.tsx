@@ -34,8 +34,6 @@ export function RatingSlider({ value, onChange, error }: RatingSliderProps) {
     }
   }
 
-  const pct = (safeVal / 10) * 100
-
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-semibold text-foreground">
@@ -66,8 +64,9 @@ export function RatingSlider({ value, onChange, error }: RatingSliderProps) {
             className="block size-[22px] rounded-full border-2 border-white shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E0DE96]/50"
             style={{
               backgroundColor: "#E0DE96",
-              transition: "transform 0.1s ease",
-              transform: pressing ? "scaleX(1.35) scaleY(0.75)" : "scale(1)",
+              // Grow on press, spring back — transition only on release so drag stays responsive
+              transform: pressing ? "scale(1.25)" : "scale(1)",
+              transition: pressing ? "transform 0.08s ease-out" : "transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
             }}
           />
         </SliderPrimitive.Root>

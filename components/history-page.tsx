@@ -87,11 +87,11 @@ function StatsBar() {
 
   return (
     // py-3 gives rotated cards room to breathe without clipping into header or sibling rows
-    <div className="flex gap-3 overflow-x-auto overflow-y-visible px-1 py-3 md:overflow-x-visible">
+    <div className="flex gap-3 overflow-y-visible px-1 py-3">
       {items.map(({ label, value, bg, border }, i) => (
         <div
           key={label}
-          className="flex shrink-0 flex-col items-center rounded-xl px-4 py-6 md:flex-1 md:shrink"
+          className="flex min-w-0 flex-1 flex-col items-center rounded-xl px-4 py-6"
           style={{
             backgroundColor: bg,
             border: `1.5px solid ${border}`,

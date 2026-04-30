@@ -19,10 +19,10 @@ const BG_REMOVAL_MESSAGES = [
   "separating drink from chaos...",
   "this takes a minute, we promise it's worth it",
   "running the magic scissors...",
-  "almost there, probably",
   "your drink is becoming a sticker",
   "clipping paths, not coupons",
   "hang tight, this part is hard",
+  "doing the hard work so you don't have to",
 ]
 
 const PHOTO_CONVERTING_MESSAGES = [
@@ -55,7 +55,7 @@ function RotatingMessage({ messages, className }: { messages: string[]; classNam
         setIdx(order.current[posRef.current])
         setVisible(true)
       }, 250)
-    }, 2800)
+    }, 5500)
     return () => clearInterval(interval)
   }, [])
 
@@ -516,13 +516,13 @@ export function ShareStep({
         </button>
       ) : isPhotoConverting ? (
         <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
+          <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted border-t-foreground" />
           <RotatingMessage messages={PHOTO_CONVERTING_MESSAGES} className="font-sans text-sm text-muted-foreground" />
-          <div className="size-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
         </span>
       ) : isBgProcessing ? (
         <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
+          <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted border-t-foreground" />
           <RotatingMessage messages={BG_REMOVAL_MESSAGES} className="font-sans text-sm text-muted-foreground" />
-          <div className="size-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
         </span>
       ) : (
         <div className="flex w-full items-center justify-between">
@@ -1110,7 +1110,7 @@ function ReceiptContent({
         <div className="my-3 flex justify-center">
           <div className="flex flex-col items-center gap-1">
             <div className="size-6 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-            <RotatingMessage messages={BG_REMOVAL_MESSAGES} className="text-[8px] text-muted-foreground" />
+            <RotatingMessage messages={BG_REMOVAL_MESSAGES} className="w-[120px] text-center text-[8px] text-muted-foreground" />
           </div>
         </div>
       ) : stickerImage ? (
@@ -1387,7 +1387,7 @@ function DraggableSticker({
       document.removeEventListener("touchmove", handleMove)
       document.removeEventListener("touchend", handleUp)
     }
-  }, [sticker.scale])
+  }, [])  // empty deps: handler reads resizeStartRef which is always current
 
   // ── Rotate ────────────────────────────────────────────────────────────────
 
@@ -1447,35 +1447,47 @@ function DraggableSticker({
       {/* ── Scaled pill (drag target) ───────────────────────────────────────── */}
       <div
         ref={stickerRef}
-        className={cn("absolute", sticker.isNew && "drank-sticker-popin")}
+        className="absolute"
         style={{
           left: `${sticker.x}%`,
           top: `${sticker.y}%`,
-          // When isNew, the keyframe owns the transform; after that we set it explicitly
-          transform: sticker.isNew ? undefined : `translate(-50%, -50%) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
+          // Positioning + rotation only — scale lives on inner scaler div
+          transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)`,
           transformOrigin: "center center",
           userSelect: "none",
           touchAction: "none",
           zIndex: isSelected ? 20 : 10,
-          // CSS custom props consumed by drank-sticker-pop keyframe
-          ["--sticker-rotation" as string]: `${sticker.rotation}deg`,
-          ["--sticker-scale" as string]: sticker.scale,
         }}
         onMouseDown={handleDragStart}
         onTouchStart={handleDragStart}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Scale wrapper — animation owns transform when isNew, inline style takes over after */}
         <div
-          className="flex items-center justify-center rounded-full px-3 font-sans text-xs font-semibold"
           style={{
-            backgroundColor: sticker.bg,
-            color: sticker.textColor,
-            height: PILL_H,
-            whiteSpace: "nowrap",
-            cursor: "grab",
+            // When isNew: animation drives scale (inline transform must be absent so keyframe wins)
+            // After isNew: inline transform sets the current scale
+            transform: sticker.isNew ? undefined : `scale(${sticker.scale})`,
+            transformOrigin: "center center",
+            animation: sticker.isNew
+              ? `drank-sticker-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards`
+              : undefined,
+            // CSS var lets the keyframe know the target scale to land on
+            ["--sticker-scale" as string]: sticker.scale,
           }}
         >
-          {sticker.text}
+          <div
+            className="flex items-center justify-center rounded-full px-3 font-sans text-xs font-semibold"
+            style={{
+              backgroundColor: sticker.bg,
+              color: sticker.textColor,
+              height: PILL_H,
+              whiteSpace: "nowrap",
+              cursor: "grab",
+            }}
+          >
+            {sticker.text}
+          </div>
         </div>
       </div>
 
@@ -1528,9 +1540,9 @@ function DraggableSticker({
             <X className="size-3" />
           </button>
 
-          {/* Rotation handle — above center (desktop only) */}
+          {/* Rotation handle — above center */}
           <div
-            className="absolute left-1/2 -translate-x-1/2 md:flex hidden"
+            className="absolute left-1/2 -translate-x-1/2 flex"
             style={{ top: -(halfH + PAD + 28), flexDirection: "column", alignItems: "center", gap: 0, pointerEvents: "auto" }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1548,7 +1560,7 @@ function DraggableSticker({
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
             onClick={(e) => e.stopPropagation()}
-            className="absolute rounded-sm bg-pink-dark md:block hidden"
+            className="absolute rounded-sm bg-pink-dark block"
             style={{
               width: 12, height: 12,
               top: -(halfH + PAD + 6),
@@ -1565,7 +1577,7 @@ function DraggableSticker({
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
             onClick={(e) => e.stopPropagation()}
-            className="absolute rounded-sm bg-pink-dark md:block hidden"
+            className="absolute rounded-sm bg-pink-dark block"
             style={{
               width: 12, height: 12,
               bottom: -(halfH + PAD + 6),
@@ -1582,7 +1594,7 @@ function DraggableSticker({
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
             onClick={(e) => e.stopPropagation()}
-            className="absolute rounded-sm bg-pink-dark md:block hidden"
+            className="absolute rounded-sm bg-pink-dark block"
             style={{
               width: 12, height: 12,
               bottom: -(halfH + PAD + 6),
