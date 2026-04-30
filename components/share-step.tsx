@@ -380,10 +380,10 @@ export function ShareStep({
         setHasSaved(true)
         showToast(isFirstSave ? "Saved to drank history" : "Drank history updated")
       } catch {
-        showToast("not enough storage to save to history")
+        showToast("Not enough storage to store in drank history")
       }
     } else {
-      showToast("not enough storage to save to history")
+      showToast("Not enough storage to store in drank history")
     }
 
     const drinkSlug = data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"
@@ -426,9 +426,9 @@ export function ShareStep({
         bgRemovedImageDataUrl: null,
       })
       setHasSaved(true)
-      showToast("receipt updated")
+      showToast("Receipt updated")
     } catch {
-      showToast("not enough storage to save to history")
+      showToast("Not enough storage to store in drank history")
     }
   }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, showToast])
   
@@ -630,17 +630,17 @@ export function ShareStep({
     </div>
   )
 
-  // Shown above the sticker panel whenever a photo exists
+  // Shown at top of content area whenever a photo exists
   const SaveWithoutPhotoBanner = image ? (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-[#9BCFEC] bg-[#EAF6FD] px-4 py-3">
       <p className="font-sans text-xs leading-snug text-[#2a6d8a]">
-        save to history without photo to free up storage
+        Store in drank history without photo to free up storage
       </p>
       <button
         onClick={handleSaveWithoutPhoto}
-        className="shrink-0 rounded-full border border-[#9BCFEC] bg-white px-3 py-1.5 font-mono text-xs text-[#2a6d8a] transition-colors hover:bg-[#9BCFEC]/20 active:scale-95"
+        className="shrink-0 rounded-full bg-[#4a9ab5] px-4 py-2.5 font-mono text-xs font-medium text-[#0e2d38] transition-opacity hover:opacity-80 active:scale-95"
       >
-        save without photo
+        Store Without Photo
       </button>
     </div>
   ) : null
@@ -692,6 +692,10 @@ export function ShareStep({
 
       {/* Main scrollable content */}
       <div className="mx-auto flex w-full max-w-[1100px] flex-col px-4 pt-3 md:h-full md:overflow-hidden md:px-6">
+        {/* Save without photo banner — full width, above both columns */}
+        {SaveWithoutPhotoBanner && (
+          <div className="mb-3 shrink-0">{SaveWithoutPhotoBanner}</div>
+        )}
         <div className="flex flex-col md:h-full md:flex-row md:gap-8 md:overflow-hidden">
 
           {/* Left column: Receipt/Story preview */}
@@ -791,9 +795,6 @@ export function ShareStep({
                   Rank Another
                 </button>
               </div>
-
-              {/* Save without photo banner — shown whenever a photo exists */}
-              {SaveWithoutPhotoBanner}
 
               {/* Stickers panel - single responsive wrapping group */}
               <div className="rounded-xl border border-border bg-card p-4">
