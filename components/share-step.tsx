@@ -184,6 +184,7 @@ export function ShareStep({
 
   const [activeTab, setActiveTab] = useState<"story" | "receipt">(image ? "story" : "receipt")
   const [hasSaved, setHasSaved] = useState(false)
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   // Separate sticker arrays for each canvas — restored from edit if available
@@ -365,6 +366,7 @@ export function ShareStep({
 
     const isFirstSave = !hasSaved
     const storageStatus = getStorageStatus()
+    setHasAttemptedSave(true)
 
     if (storageStatus.level !== "critical") {
       try {
@@ -380,10 +382,10 @@ export function ShareStep({
         setHasSaved(true)
         showToast(isFirstSave ? "Saved to drank history" : "Drank history updated")
       } catch {
-        showToast("Not enough storage to store in drank history")
+        showToast("Not enough drank storage — store without photo to free up space")
       }
     } else {
-      showToast("Not enough storage to store in drank history")
+      showToast("Not enough drank storage — store without photo to free up space")
     }
 
     const drinkSlug = data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"
@@ -426,12 +428,12 @@ export function ShareStep({
         bgRemovedImageDataUrl: null,
       })
       setHasSaved(true)
-      showToast("Receipt updated")
+      showToast("Stored in drank history without photo")
     } catch {
-      showToast("Not enough storage to store in drank history")
+      showToast("Not enough drank storage to save")
     }
   }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, showToast])
-  
+
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
@@ -630,19 +632,19 @@ export function ShareStep({
     </div>
   )
 
-  // Shown at top of content area whenever a photo exists
-  const SaveWithoutPhotoBanner = image ? (
+  // Shown at top of content area only after user has attempted to save, and only when a photo exists
+  const SaveWithoutPhotoBanner = (image && hasAttemptedSave) ? (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-[#9BCFEC] bg-[#EAF6FD] px-4 py-3">
       <p className="font-sans text-xs leading-snug text-[#2a6d8a]">
-        save to{" "}
+        Store in{" "}
         <a href="/history" className="underline hover:opacity-70">drank history</a>
-        {" "}without photo to free up storage
+        {" "}without photo to free up drank storage
       </p>
       <button
         onClick={handleSaveWithoutPhoto}
         className="shrink-0 rounded-full border border-[#9BCFEC] bg-[#9BCFEC] px-4 py-2.5 font-mono text-xs text-foreground transition-opacity hover:opacity-80 active:scale-95"
       >
-        save without photo
+        Store without photo
       </button>
     </div>
   ) : null
@@ -801,7 +803,7 @@ export function ShareStep({
               {/* Stickers panel - single responsive wrapping group */}
               <div className="rounded-xl border border-border bg-card p-4">
                 <p className="mb-3 text-center font-sans text-xs text-muted-foreground">
-                  select a sticker to place it on your {activeTab === "story" ? "story" : "receipt"}
+                  Select a sticker to place it on your {activeTab === "story" ? "story" : "receipt"}
                 </p>
                 <div className="flex flex-wrap justify-center gap-3">
                   {STICKER_GROUPS.flat().map((sticker) => (
@@ -1621,6 +1623,23 @@ function DraggableSticker({
               top: -(halfH + PAD + 6),
               left: -(halfW + PAD + 6),
               cursor: "nw-resize",
+              touchAction: "none",
+              zIndex: 30,
+              pointerEvents: "auto",
+            }}
+          />
+
+          {/* Resize handle — top-right (desktop only) */}
+          <div
+            onMouseDown={handleResizeStart}
+            onTouchStart={handleResizeStart}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute rounded-sm bg-pink-dark block"
+            style={{
+              width: 12, height: 12,
+              top: -(halfH + PAD + 6),
+              right: -(halfW + PAD + 6),
+              cursor: "ne-resize",
               touchAction: "none",
               zIndex: 30,
               pointerEvents: "auto",
