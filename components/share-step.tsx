@@ -421,8 +421,8 @@ export function ShareStep({
         receiptStickers,
         storyStickers,
         showDrinkSticker: false,
-        savedCanvasDataUrl: null,
-        savedCanvasPriority: -1,
+        savedCanvasDataUrl: receiptUrl ?? null,
+        savedCanvasPriority: receiptUrl ? 0 : -1,
         imageDataUrl: null,
         thumbnailDataUrl: null,
         bgRemovedImageDataUrl: null,
@@ -432,7 +432,7 @@ export function ShareStep({
     } catch {
       showToast("Not enough drank storage to save")
     }
-  }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, showToast])
+  }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, receiptUrl, showToast])
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -656,7 +656,7 @@ export function ShareStep({
         <a
           href={toastMessage.includes("history") ? "/history" : undefined}
           className={cn(
-            "fixed left-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
+            "fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-2 bg-green-light px-4 py-3 shadow-md transition-opacity",
             toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
           )}
           style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
