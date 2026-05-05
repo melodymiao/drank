@@ -184,7 +184,7 @@ export function ShareStep({
 
   const [activeTab, setActiveTab] = useState<"story" | "receipt">(image ? "story" : "receipt")
   const [hasSaved, setHasSaved] = useState(false)
-  const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
+  const [bannerReady, setBannerReady] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   // Separate sticker arrays for each canvas — restored from edit if available
@@ -357,7 +357,7 @@ export function ShareStep({
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg)
-    setTimeout(() => setToastMessage(null), 3000)
+    setTimeout(() => setToastMessage(null), 6000)
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -366,7 +366,6 @@ export function ShareStep({
 
     const isFirstSave = !hasSaved
     const storageStatus = getStorageStatus()
-    setHasAttemptedSave(true)
 
     if (storageStatus.level !== "critical") {
       try {
@@ -402,6 +401,8 @@ export function ShareStep({
         const file = new File([blob], filename, { type: "image/png" })
         if (navigator.canShare?.({ files: [file] })) {
           await navigator.share({ files: [file] })
+          // Share sheet closed — now safe to show the banner
+          setBannerReady(true)
           return
         }
       } catch {
@@ -409,6 +410,8 @@ export function ShareStep({
       }
     }
 
+    // Desktop or mobile fallback
+    setBannerReady(true)
     const link = document.createElement("a")
     link.download = filename
     link.href = url
@@ -632,8 +635,9 @@ export function ShareStep({
     </div>
   )
 
-  // Shown at top of content area only after user has attempted to save, and only when a photo exists
-  const SaveWithoutPhotoBanner = (image && hasAttemptedSave) ? (
+  // Shown only after bannerReady is set (after share sheet closes on mobile, immediately on desktop)
+  // and only when a photo exists — prompts user to free up storage
+  const SaveWithoutPhotoBanner = (image && bannerReady) ? (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-[#9BCFEC] bg-[#EAF6FD] px-4 py-3">
       <p className="font-sans text-xs leading-snug text-[#2a6d8a]">
         Store in{" "}
@@ -656,10 +660,10 @@ export function ShareStep({
         <a
           href={toastMessage.includes("history") ? "/history" : undefined}
           className={cn(
-            "fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-2 bg-green-light px-4 py-3 shadow-md transition-opacity",
+            "fixed left-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
             toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
           )}
-          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
+          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 5.6s forwards", textDecoration: "none" }}
           onClick={toastMessage.includes("history") ? undefined : (e) => e.preventDefault()}
         >
           <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
@@ -1935,152 +1939,116 @@ async function generateReceiptCanvas(
 ): Promise<string | null> {
   if (!canvas) return null
 
-  const SCALE = 2       // render at 2× for sharpness
-  const LW = 280        // logical width — matches w-[280px]
-  const LP = 20         // logical side padding — matches px-5
-  const SM = 0          // no side margin on receipt canvas
+  // ── Layout constants (mirror Tailwind values exactly) ────────────────────
+  const SCALE = 2          // retina
+  const LW = 280           // logical receipt width (w-[280px])
+  const LP = 20            // logical px-5
+  const PY = 24            // logical py-6
+  const SM = 8             // logical shadow margin (card offset from canvas edge)
 
-  canvas.width = (LW + SM * 2) * SCALE
+  // ── Build customizations list (same logic as InteractiveCanvas) ───────────
+  const customizations: string[] = []
+  const tc = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : ""
+  if (data.iceTemp) customizations.push(tc(data.iceTemp))
+  if (data.iceLevel) customizations.push(`${tc(data.iceLevel)} Ice`)
+  if (data.sugarLevel) customizations.push(`${tc(data.sugarLevel)} Sugar`)
+  const milkDisplay = data.milk === "other" && data.otherMilk ? data.otherMilk : data.milk
+  if (milkDisplay) customizations.push(`${tc(milkDisplay)} Milk`)
+  if (data.toppings.length > 0) customizations.push(...data.toppings.map(tc))
+  if (data.otherCustomizations) customizations.push(tc(data.otherCustomizations))
+
+  // ── Pre-measure: calculate total receipt height ───────────────────────────
+  // We need a temp ctx to measure text widths for wrapping
+  const tmpCanvas = document.createElement("canvas")
+  tmpCanvas.width = (LW + SM * 2) * SCALE
+  tmpCanvas.height = 10
+  const tmpCtx = tmpCanvas.getContext("2d")
+  if (!tmpCtx) return null
+
+  // Helper: wrap text to fit within maxWidth, return array of lines
+  function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+    const words = text.split(" ")
+    const lines: string[] = []
+    let current = ""
+    for (const word of words) {
+      const test = current ? `${current} ${word}` : word
+      if (ctx.measureText(test).width > maxWidth && current) {
+        lines.push(current)
+        current = word
+      } else {
+        current = test
+      }
+    }
+    if (current) lines.push(current)
+    return lines.length > 0 ? lines : [""]
+  }
+
+  // Measure drink name lines (text-2xl = 24px, font-medium)
+  tmpCtx.font = `500 ${24 * SCALE}px 'IBM Plex Mono', monospace`
+  const drinkLines = wrapText(tmpCtx, (data.drinkName?.trim()) || "Beverage", (LW - LP * 2) * SCALE)
+
+  // Measure customization lines (text-sm = 14px, font-medium)
+  tmpCtx.font = `500 ${14 * SCALE}px 'IBM Plex Mono', monospace`
+  const customText = customizations.join(", ")
+  const customizationLines = customizations.length > 0
+    ? wrapText(tmpCtx, customText, (LW - LP * 2) * SCALE)
+    : []
+
+  // Measure note lines (text-xs = 12px, font-light)
+  tmpCtx.font = `300 ${12 * SCALE}px 'IBM Plex Mono', monospace`
+  const noteLines = data.comments?.trim()
+    ? wrapText(tmpCtx, `Notes: ${data.comments.trim()}`, (LW - LP * 2) * SCALE)
+    : []
+
+  // ── Calculate total height ─────────────────────────────────────────────────
+  const ratingDiam = 56   // size-14 = 56px
+  let h = PY              // pt-6
+
+  h += ratingDiam + 12    // rating circle + mb-3
+  h += 12 + 12            // café (text-xs=12) + mb-3
+  h += drinkLines.length * 28 + 12  // drink name (24px line-height≈28) + mb-3
+  if (customizationLines.length > 0) h += customizationLines.length * 18 + 12  // text-sm + mb-3
+  if (stickerImg) {
+    const maxW = LW - LP * 2, maxH = 140
+    const s = Math.min(maxW / stickerImg.width, maxH / stickerImg.height)
+    h += stickerImg.height * s + 4   // sticker + my-1 bottom
+  }
+  if (noteLines.length > 0) h += noteLines.length * 16 + 12  // text-xs line-height≈16 + mb-3
+  if (data.location?.trim()) h += 12 + 4  // location + small gap
+  h += 12 + 12            // date/time (text-xs) + mb-3
+  h += 1 + 12             // divider + mb-3
+  h += 12                 // footer (text-xs)
+  h += PY                 // pb-6
+
+  // ── Set canvas dimensions ─────────────────────────────────────────────────
+  canvas.width  = (LW + SM * 2) * SCALE
+  canvas.height = (h  + SM * 2) * SCALE
 
   const ctx = canvas.getContext("2d")
   if (!ctx) return null
 
   ctx.scale(SCALE, SCALE)
 
-  // ── Pre-load font (all weights used in canvas draws) ─────────────────────
-  try {
-    await document.fonts.ready
-    await Promise.all([
-      document.fonts.load("300 12px 'IBM Plex Mono'"),
-      document.fonts.load("400 12px 'IBM Plex Mono'"),
-      document.fonts.load("500 12px 'IBM Plex Mono'"),
-      document.fonts.load("500 14px 'IBM Plex Mono'"),
-      document.fonts.load("400 18px 'IBM Plex Mono'"),
-      document.fonts.load("500 24px 'IBM Plex Mono'"),
-    ])
-  } catch {}
-
-  // ── Build customizations list (mirrors InteractiveCanvas logic) ───────────
-  const toTitleCaseLocal = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : ""
-  const customizations: string[] = []
-  if (data.iceTemp) customizations.push(toTitleCaseLocal(data.iceTemp))
-  if (data.iceLevel) customizations.push(`${toTitleCaseLocal(data.iceLevel)} Ice`)
-  if (data.sugarLevel) customizations.push(`${toTitleCaseLocal(data.sugarLevel)} Sugar`)
-  const milkDisplay = data.milk === "other" && data.otherMilk ? data.otherMilk : data.milk
-  if (milkDisplay) customizations.push(`${toTitleCaseLocal(milkDisplay)} Milk`)
-  if (data.toppings?.length > 0) customizations.push(...data.toppings.map(toTitleCaseLocal))
-  if (data.otherCustomizations) customizations.push(toTitleCaseLocal(data.otherCustomizations))
-
-  // ── Text wrapping helper ──────────────────────────────────────────────────
-  const wrapText = (text: string, maxWidth: number): string[] => {
-    const words = text.split(" ")
-    const lines: string[] = []
-    let line = ""
-    for (const word of words) {
-      const test = line ? `${line} ${word}` : word
-      if (ctx.measureText(test).width > maxWidth && line) {
-        lines.push(line)
-        line = word
-      } else {
-        line = test
-      }
-    }
-    if (line) lines.push(line)
-    return lines
-  }
-
-  // ── Pass 1: Measure height ────────────────────────────────────────────────
-  canvas.height = 10 * SCALE
-  ctx.scale(SCALE, SCALE)
-
-  let h = 24  // py-6 top padding
-
-  // Rating circle
-  const ratingDiam = 56  // size-14
-  h += ratingDiam + 12   // circle + mb-3
-
-  // Cafe name
-  h += 12 + 12  // text-xs + mb-3
-
-  // Drink name (wrapping, text-2xl = 24px, line height ~28px)
-  ctx.font = "500 24px 'IBM Plex Mono', monospace"
-  const drinkLines = wrapText(data.drinkName?.trim() || "Beverage", LW - LP * 2)
-  h += drinkLines.length * 28 + 12  // lines + mb-3
-
-  // Customizations
-  if (customizations.length > 0) {
-    ctx.font = "500 14px 'IBM Plex Mono', monospace"
-    const custText = customizations.join(", ")
-    const customizationLines = wrapText(custText, LW - LP * 2)
-    h += customizationLines.length * 18 + 12  // lines + mb-3
-  }
-
-  // Drink sticker
-  if (stickerImg) {
-    const maxW = LW - LP * 2, maxH = 140
-    const s = Math.min(maxW / stickerImg.width, maxH / stickerImg.height)
-    h += stickerImg.height * s + 4  // sticker height + my-1 bottom
-  }
-
-  // Notes
-  if (data.comments?.trim()) {
-    ctx.font = "300 12px 'IBM Plex Mono', monospace"
-    const noteLines = wrapText(`Notes: ${data.comments.trim()}`, LW - LP * 2)
-    h += noteLines.length * 16 + 12  // lines + mb-3
-  }
-
-  // Location
-  if (data.location?.trim()) {
-    h += 12 + 4  // text-xs + small gap
-  }
-
-  // Date/time
-  h += 12 + 12  // text-xs + mb-3
-
-  // Divider
-  h += 1 + 12  // border + mb-3
-
-  // Footer
-  h += 12  // text-xs
-
-  // Bottom padding
-  h += 24  // py-6 bottom
-
-  // ── Pass 2: Draw ──────────────────────────────────────────────────────────
-  canvas.width = (LW + SM * 2) * SCALE
-  canvas.height = (h + SM * 2) * SCALE
-  ctx.setTransform(1, 0, 0, 1, 0, 0)
-  ctx.scale(SCALE, SCALE)
-
-  // Background
-  ctx.fillStyle = "#FEFCF4"
+  // ── Draw card background + shadow ────────────────────────────────────────
+  ctx.shadowColor = "rgba(0,0,0,0.10)"
+  ctx.shadowBlur  = 24
+  ctx.shadowOffsetX = 0
+  ctx.shadowOffsetY = 4
+  ctx.fillStyle = RECEIPT_BG
   roundRect(ctx, SM, SM, LW, h, RECEIPT_RADIUS)
   ctx.fill()
+  ctx.shadowColor = "transparent"
+  ctx.shadowBlur  = 0
 
-  const cx = SM + LW / 2
-  let y = SM + 24  // py-6
-
+  // ── Draw receipt content ──────────────────────────────────────────────────
   ctx.fillStyle = TEXT_COLOR
   ctx.textBaseline = "top"
 
-  // Rebuild computed values for pass 2
-  ctx.font = "500 24px 'IBM Plex Mono', monospace"
-  const drinkLines2 = wrapText(data.drinkName?.trim() || "Beverage", LW - LP * 2)
+  const cx = SM + LW / 2   // horizontal center
+  let y = SM + PY           // current Y cursor
 
-  let customizationLines2: string[] = []
-  if (customizations.length > 0) {
-    ctx.font = "500 14px 'IBM Plex Mono', monospace"
-    customizationLines2 = wrapText(customizations.join(", "), LW - LP * 2)
-  }
-
-  let noteLines2: string[] = []
-  if (data.comments?.trim()) {
-    ctx.font = "300 12px 'IBM Plex Mono', monospace"
-    noteLines2 = wrapText(`Notes: ${data.comments.trim()}`, LW - LP * 2)
-  }
-
-  // ── Rating circle ─────────────────────────────────────────────────────────
-  const ratingR = 28  // radius = size-14 / 2
+  // ── Rating circle (size-14 = 56px, border-2, text-lg = 18px) ─────────────
+  const ratingR = ratingDiam / 2
   ctx.strokeStyle = TEXT_COLOR
   ctx.lineWidth = 2
   ctx.beginPath()
@@ -2105,14 +2073,22 @@ async function generateReceiptCanvas(
 
   // ── Drink name (text-2xl, font-medium, mb-3) ───────────────────────────────
   ctx.font = "500 24px 'IBM Plex Mono', monospace"
-  for (const l of drinkLines2) { ctx.fillText(l, cx, y); y += 28 }
+  for (const l of drinkLines) { ctx.fillText(l, cx, y); y += 28 }
   y += 12  // mb-3
 
   // ── Customizations (text-sm, font-medium, mb-3) ───────────────────────────
   if (customizations.length > 0) {
+    // Re-measure at draw scale (ctx is at 1x after ctx.scale, so same font sizes)
+    tmpCtx.font = `500 ${14 * SCALE}px 'IBM Plex Mono', monospace`
+    const drawCtxCustomLines = (() => {
+      // Need to wrap at the draw ctx's scale — reuse tmpCtx measurement
+      const ctx2 = canvas.getContext("2d")!
+      ctx2.font = "500 14px 'IBM Plex Mono', monospace"
+      return wrapText(ctx2, customText, LW - LP * 2)
+    })()
     ctx.font = "500 14px 'IBM Plex Mono', monospace"
     ctx.textAlign = "center"
-    for (const l of customizationLines2) { ctx.fillText(l, cx, y); y += 18 }
+    for (const l of drawCtxCustomLines) { ctx.fillText(l, cx, y); y += 18 }
     y += 12  // mb-3
   }
 
@@ -2127,9 +2103,14 @@ async function generateReceiptCanvas(
 
   // ── Notes (text-xs, font-light, mb-3, left-aligned) ──────────────────────
   if (data.comments?.trim()) {
+    const drawNoteLines = (() => {
+      const ctx2 = canvas.getContext("2d")!
+      ctx2.font = "300 12px 'IBM Plex Mono', monospace"
+      return wrapText(ctx2, `Notes: ${data.comments.trim()}`, LW - LP * 2)
+    })()
     ctx.font = "300 12px 'IBM Plex Mono', monospace"
     ctx.textAlign = "left"
-    for (const l of noteLines2) { ctx.fillText(l, SM + LP, y); y += 16 }
+    for (const l of drawNoteLines) { ctx.fillText(l, SM + LP, y); y += 16 }
     y += 12  // mb-3
   }
 
