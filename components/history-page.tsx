@@ -71,6 +71,64 @@ function useCountUp(target: number | null, duration = 600): number | null {
   return value
 }
 
+/* Squiggly outline SVGs for each stat card color */
+function SquigglyStatCard({
+  label,
+  value,
+  color,
+  visible,
+  delay,
+}: {
+  label: string
+  value: string
+  color: "pink" | "green" | "blue"
+  visible: boolean
+  delay: number
+}) {
+  // Each color has its own squiggly path + stroke color
+  const configs = {
+    pink: { stroke: "#e06a8a", fill: "#F884A3" },
+    green: { stroke: "#b8b65a", fill: "#E0DE96" },
+    blue: { stroke: "#68a9cc", fill: "#9BCFEC" },
+  }
+  const { stroke, fill } = configs[color]
+
+  return (
+    <div
+      className="relative min-w-0 flex-1"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(8px)",
+        transition: `opacity 0.35s ease ${delay}ms, transform 0.35s ease ${delay}ms`,
+      }}
+    >
+      {/* SVG squiggly border */}
+      <svg
+        viewBox="0 0 100 80"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="absolute inset-0 h-full w-full"
+        preserveAspectRatio="none"
+      >
+        <path
+          d="M6 14 C4 10, 3 8, 5 6 C8 3, 15 5, 22 4 C30 3, 38 5, 46 4 C54 3, 62 5, 70 4 C78 3, 86 5, 93 6 C97 7, 98 10, 97 14 C98 22, 97 30, 98 38 C99 46, 97 54, 98 62 C99 68, 97 72, 94 74 C90 77, 82 75, 74 76 C66 77, 58 75, 50 76 C42 77, 34 75, 26 76 C18 77, 10 75, 6 74 C3 72, 2 68, 3 62 C2 54, 3 46, 2 38 C1 30, 2 22, 6 14Z"
+          stroke={stroke}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill={fill}
+          fillOpacity="0.55"
+        />
+      </svg>
+      {/* Content */}
+      <div className="relative flex flex-col items-center justify-center px-2 py-5">
+        <span className="font-mono text-lg font-medium leading-tight text-[#473C23]">{value}</span>
+        <span className="font-sans text-[10px] uppercase tracking-wider text-[#473C23]/70">{label}</span>
+      </div>
+    </div>
+  )
+}
+
 function StatsBar() {
   const [stats, setStats] = useState({ avgScore: null as number | null, uniqueCafes: 0, uniqueCities: 0 })
   const [visible, setVisible] = useState(false)
@@ -78,7 +136,6 @@ function StatsBar() {
   useEffect(() => {
     const s = getStats()
     setStats({ avgScore: s.avgScore, uniqueCafes: s.uniqueCafes, uniqueCities: s.uniqueCities })
-    // Small delay so the slide-up feels intentional
     const t = setTimeout(() => setVisible(true), 60)
     return () => clearTimeout(t)
   }, [])
@@ -87,30 +144,32 @@ function StatsBar() {
   const animCafes = useCountUp(stats.uniqueCafes, 600)
   const animCities = useCountUp(stats.uniqueCities, 650)
 
-  const items = [
-    { label: "avg score", value: animAvg !== null ? animAvg.toFixed(1) : "—", bg: "#F884A3", border: "#e06a8a" },
-    { label: "cafés",     value: animCafes !== null ? String(Math.round(animCafes)) : "0",  bg: "#E0DE96", border: "#b8b65a" },
-    { label: "cities",    value: animCities !== null ? String(Math.round(animCities)) : "0", bg: "#9BCFEC", border: "#68a9cc" },
-  ]
-
   return (
     <div className="flex gap-3">
-      {items.map(({ label, value, bg, border }, i) => (
-        <div
-          key={label}
-          className="flex min-w-0 flex-1 flex-col items-center rounded-xl px-4 py-5"
-          style={{
-            backgroundColor: bg,
-            border: `1.5px solid ${border}`,
-            opacity: visible ? 1 : 0,
-            transform: visible ? "translateY(0)" : "translateY(8px)",
-            transition: `opacity 0.35s ease ${i * 60}ms, transform 0.35s ease ${i * 60}ms`,
-          }}
-        >
-          <span className="font-mono text-lg font-medium leading-tight text-[#473C23]">{value}</span>
-          <span className="font-sans text-[10px] uppercase tracking-wider text-[#473C23]/70">{label}</span>
-        </div>
-      ))}
+      {/* cafés — pink */}
+      <SquigglyStatCard
+        label="cafés"
+        value={animCafes !== null ? String(Math.round(animCafes)) : "0"}
+        color="pink"
+        visible={visible}
+        delay={0}
+      />
+      {/* avg score — green (middle, most important) */}
+      <SquigglyStatCard
+        label="avg score"
+        value={animAvg !== null ? animAvg.toFixed(1) : "—"}
+        color="green"
+        visible={visible}
+        delay={60}
+      />
+      {/* cities — blue */}
+      <SquigglyStatCard
+        label="cities"
+        value={animCities !== null ? String(Math.round(animCities)) : "0"}
+        color="blue"
+        visible={visible}
+        delay={120}
+      />
     </div>
   )
 }
@@ -190,7 +249,7 @@ function MobileAllFilterChip({
         className={cn(
           "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-3 py-1.5 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
           active || isOpen
-            ? "border-green-light bg-green-light text-foreground"
+            ? "border-green-light bg-green-light font-medium text-foreground"
             : "border-green-light bg-green-light/25 text-green-dark"
         )}
       >
@@ -406,7 +465,7 @@ function FilterChip({
         className={cn(
             "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-3 py-1.5 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
             active || isOpen
-            ? "border-green-light bg-green-light text-foreground"
+            ? "border-green-light bg-green-light font-medium text-foreground"
             : "border-green-light bg-green-light/25 text-green-dark"
         )}
         >
@@ -803,7 +862,7 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
 
           {/* Info */}
           <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="truncate font-mono text-md font-medium text-foreground">
+            <span className="line-clamp-2 font-mono text-md font-medium text-foreground">
               {receipt.drinkName || "Beverage"}
             </span>
             <span className="truncate font-sans text-sm text-muted-foreground">
@@ -962,9 +1021,9 @@ export default function HistoryPage() {
       onClearAll={() => { setCafeFilter(new Set()); setLocationFilter(new Set()) }}
     />
     <div className="ml-auto flex items-center gap-2">
-      <div className="flex rounded-xl border-2 border-border bg-transparent p-1">
-        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground")}>ranking</button>
-        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground")}>latest</button>
+      <div className="flex rounded-xl border-2 border-green-light bg-transparent p-1">
+        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>ranking</button>
+        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>latest</button>
       </div>
       <button onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} className="flex items-center justify-center p-1 text-green-dark transition-opacity hover:opacity-70" aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}>
         <ArrowUpDown className="size-5" />
@@ -1008,9 +1067,9 @@ export default function HistoryPage() {
       />
     </div>
     <div className="flex items-center gap-3">
-      <div className="flex rounded-xl border-2 border-border bg-transparent p-1">
-        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground")}>ranking</button>
-        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light text-foreground" : "text-muted-foreground hover:text-foreground")}>latest</button>
+      <div className="flex rounded-xl border-2 border-green-light bg-transparent p-1">
+        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>ranking</button>
+        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>latest</button>
       </div>
       <button onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} className="flex items-center justify-center p-1 text-green-dark transition-opacity hover:opacity-70" aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}>
         <ArrowUpDown className="size-5" />
