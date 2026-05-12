@@ -175,6 +175,34 @@ export async function resizeImage(
   })
 }
 
+/**
+ * Resizes a PNG data URL to a max dimension, preserving transparency.
+ * Returns the input unchanged if resizing fails.
+ */
+export async function resizePng(
+  dataUrl: string,
+  maxWidth: number
+): Promise<string> {
+  if (!dataUrl) return dataUrl
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width)
+      const w = Math.round(img.width * scale)
+      const h = Math.round(img.height * scale)
+      const canvas = document.createElement("canvas")
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext("2d")
+      if (!ctx) { resolve(dataUrl); return }
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL("image/png"))
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
+}
+
 /* ─────────────────────────────────────────────────────────────
    Public API
 ───────────────────────────────────────────────────────────── */
@@ -214,25 +242,11 @@ export async function saveReceipt(
   }
 
   const all = readAll()
-  // If a record with this id already exists (e.g. user went back and re-finished,
-  // or the user is editing a history entry), preserve fields that belong to the
-  // share step — they will be re-written when the user saves from the share step.
-  // Also preserve the original savedAt timestamp.
-  const existingIdx = all.findIndex((r) => r.id === id)
-  if (existingIdx !== -1) {
-    const prev = all[existingIdx]
-    all[existingIdx] = {
-      ...receipt,
-      savedAt: prev.savedAt,
-      // Share-step fields: keep whatever was already saved so they survive the
-      // decorate → share transition without being wiped.
-      bgRemovedImageDataUrl: prev.bgRemovedImageDataUrl,
-      showDrinkSticker: prev.showDrinkSticker,
-      receiptStickers: prev.receiptStickers,
-      storyStickers: prev.storyStickers,
-      savedCanvasDataUrl: prev.savedCanvasDataUrl,
-      savedCanvasPriority: prev.savedCanvasPriority,
-    }
+  // If a record with this id already exists (e.g. user went back and re-finished),
+  // preserve the original savedAt and update everything else.
+  const existing = all.findIndex((r) => r.id === id)
+  if (existing !== -1) {
+    all[existing] = { ...receipt, savedAt: all[existing].savedAt }
   } else {
     all.unshift(receipt) // newest first
   }

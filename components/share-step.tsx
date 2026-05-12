@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import type { ReceiptData, StickerItem } from "@/components/decorate-step"
 import { removeBackground } from "@imgly/background-removal"
 import { ERRORS, pickError } from "@/lib/errors"
-import { updateReceipt, resizeImage, getStorageStatus, type StoredSticker } from "@/lib/receipt-store"
+import { updateReceipt, resizeImage, resizePng, getStorageStatus, type StoredSticker } from "@/lib/receipt-store"
 
 /* ============================================================
    Rotating Loading Message
@@ -184,7 +184,7 @@ export function ShareStep({
 
   const [activeTab, setActiveTab] = useState<"story" | "receipt">(image ? "story" : "receipt")
   const [hasSaved, setHasSaved] = useState(false)
-  const [bannerReady, setBannerReady] = useState(false)
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   // Separate sticker arrays for each canvas — restored from edit if available
@@ -338,8 +338,9 @@ export function ShareStep({
       const result = await removeBackground(croppedBlob)
 
       const reader = new FileReader()
-      reader.onloadend = () => {
-        setBgRemovedImage(reader.result as string)
+      reader.onloadend = async () => {
+        const resized = await resizePng(reader.result as string, 500)
+        setBgRemovedImage(resized)
         setShowDrinkSticker(true)
         setIsBgProcessing(false)
       }
@@ -357,7 +358,7 @@ export function ShareStep({
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg)
-    setTimeout(() => setToastMessage(null), 6000)
+    setTimeout(() => setToastMessage(null), 3000)
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -366,6 +367,7 @@ export function ShareStep({
 
     const isFirstSave = !hasSaved
     const storageStatus = getStorageStatus()
+    setHasAttemptedSave(true)
 
     if (storageStatus.level !== "critical") {
       try {
@@ -401,8 +403,6 @@ export function ShareStep({
         const file = new File([blob], filename, { type: "image/png" })
         if (navigator.canShare?.({ files: [file] })) {
           await navigator.share({ files: [file] })
-          // Share sheet closed — now safe to show the banner
-          setBannerReady(true)
           return
         }
       } catch {
@@ -410,8 +410,6 @@ export function ShareStep({
       }
     }
 
-    // Desktop or mobile fallback
-    setBannerReady(true)
     const link = document.createElement("a")
     link.download = filename
     link.href = url
@@ -424,8 +422,8 @@ export function ShareStep({
         receiptStickers,
         storyStickers,
         showDrinkSticker: false,
-        savedCanvasDataUrl: receiptUrl ?? null,
-        savedCanvasPriority: receiptUrl ? 0 : -1,
+        savedCanvasDataUrl: null,
+        savedCanvasPriority: -1,
         imageDataUrl: null,
         thumbnailDataUrl: null,
         bgRemovedImageDataUrl: null,
@@ -435,7 +433,7 @@ export function ShareStep({
     } catch {
       showToast("Not enough drank storage to save")
     }
-  }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, receiptUrl, showToast])
+  }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, showToast])
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -635,9 +633,8 @@ export function ShareStep({
     </div>
   )
 
-  // Shown only after bannerReady is set (after share sheet closes on mobile, immediately on desktop)
-  // and only when a photo exists — prompts user to free up storage
-  const SaveWithoutPhotoBanner = (image && bannerReady) ? (
+  // Shown at top of content area only after user has attempted to save, and only when a photo exists
+  const SaveWithoutPhotoBanner = (image && hasAttemptedSave) ? (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-[#9BCFEC] bg-[#EAF6FD] px-4 py-3">
       <p className="font-sans text-xs leading-snug text-[#2a6d8a]">
         Store in{" "}
@@ -655,15 +652,15 @@ export function ShareStep({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
-      {/* Toast notification — bounded left+right on mobile so long messages don't stretch edge to edge */}
+      {/* Toast notification */}
       {toastMessage && (
         <a
           href={toastMessage.includes("history") ? "/history" : undefined}
           className={cn(
-            "fixed left-4 right-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity md:right-auto",
+            "fixed left-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
             toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
           )}
-          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 5.6s forwards", textDecoration: "none" }}
+          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
           onClick={toastMessage.includes("history") ? undefined : (e) => e.preventDefault()}
         >
           <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
@@ -700,9 +697,9 @@ export function ShareStep({
 
       {/* Main scrollable content */}
       <div className="mx-auto flex w-full max-w-[1100px] flex-col px-4 pt-3 md:h-full md:overflow-hidden md:px-6">
-        {/* Save without photo banner — desktop only, above both columns */}
+        {/* Save without photo banner — full width, above both columns */}
         {SaveWithoutPhotoBanner && (
-          <div className="mb-3 hidden shrink-0 md:block">{SaveWithoutPhotoBanner}</div>
+          <div className="mb-3 shrink-0">{SaveWithoutPhotoBanner}</div>
         )}
         <div className="flex flex-col md:h-full md:flex-row md:gap-8 md:overflow-hidden">
 
@@ -720,10 +717,6 @@ export function ShareStep({
                 Back
               </button>
             </div>
-            {/* Mobile banner — appears below back button, above canvas, clear of the toast */}
-            {SaveWithoutPhotoBanner && (
-              <div className="mb-2 shrink-0 md:hidden">{SaveWithoutPhotoBanner}</div>
-            )}
             {/* Desktop — h-[40px] matches decorate-step back button row */}
             <div className="hidden h-[40px] shrink-0 items-center md:flex">
               <button
@@ -1053,6 +1046,7 @@ function InteractiveCanvas({
         onClick={handleContainerClick}
         className="relative w-[280px] rounded-sm px-5 py-6 overflow-hidden"
         style={{ backgroundColor: "rgba(254,252,244,0.9)", fontFamily: "'IBM Plex Mono', monospace", boxShadow: "0 4px 32px rgba(0,0,0,0.08)" }}
+
       >
         <ReceiptContent
           data={data}
@@ -1619,7 +1613,7 @@ function DraggableSticker({
             <div style={{ width: 1, height: 16, backgroundColor: "rgba(203,68,106,0.5)" }} />
           </div>
 
-          {/* Resize handle — top-left */}
+          {/* Resize handle — top-left (desktop only) */}
           <div
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
@@ -1636,7 +1630,7 @@ function DraggableSticker({
             }}
           />
 
-          {/* Resize handle — top-right */}
+          {/* Resize handle — top-right (desktop only) */}
           <div
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
@@ -1653,7 +1647,7 @@ function DraggableSticker({
             }}
           />
 
-          {/* Resize handle — bottom-left */}
+          {/* Resize handle — bottom-left (desktop only) */}
           <div
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
@@ -1670,7 +1664,7 @@ function DraggableSticker({
             }}
           />
 
-          {/* Resize handle — bottom-right */}
+          {/* Resize handle — bottom-right (desktop only) */}
           <div
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
