@@ -153,7 +153,7 @@ function SquigglyStatCard({
           <path
             d={path}
             stroke={stroke}
-            strokeWidth="4"
+            strokeWidth="3"
             strokeLinecap="round"
             fill="none"
             vectorEffect="non-scaling-stroke"
@@ -166,7 +166,7 @@ function SquigglyStatCard({
         style={{ height: nativeH }}
       >
         <span className="font-mono text-lg font-medium leading-tight text-[#473C23]">{value}</span>
-        <span className="font-sans text-[10px] uppercase tracking-wider text-[#473C23]/70">{label}</span>
+        <span className="font-mono text-[10px] uppercase tracking-wider text-[#473C23]/70">{label}</span>
       </div>
     </div>
   )
@@ -315,21 +315,21 @@ function MobileAllFilterChip({
                   onClick={() => { onClearAll(); setIsOpen(false) }}
                   className="flex w-full items-center px-3 py-2 font-sans text-xs text-muted-foreground hover:bg-border/40"
                 >
-                  clear all
+                  Clear all
                 </button>
               )}
               <button
                 onClick={() => setSubMenu("cafe")}
                 className="flex w-full items-center justify-between px-3 py-3.5 font-sans text-xs text-foreground hover:bg-border/40"
               >
-                <span>café {cafeFilter.size > 0 && <span className="ml-1 text-[10px] text-muted-foreground">({cafeFilter.size})</span>}</span>
+                <span>Café {cafeFilter.size > 0 && <span className="ml-1 text-[10px] text-muted-foreground">({cafeFilter.size})</span>}</span>
                 <ChevronDown className="-rotate-90 size-3 opacity-50" />
               </button>
               <button
                 onClick={() => setSubMenu("location")}
                 className="flex w-full items-center justify-between px-3 py-3.5 font-sans text-xs text-foreground hover:bg-border/40"
               >
-                <span>location {locationFilter.size > 0 && <span className="ml-1 text-[10px] text-muted-foreground">({locationFilter.size})</span>}</span>
+                <span>Location {locationFilter.size > 0 && <span className="ml-1 text-[10px] text-muted-foreground">({locationFilter.size})</span>}</span>
                 <ChevronDown className="-rotate-90 size-3 opacity-50" />
               </button>
             </div>
@@ -342,19 +342,19 @@ function MobileAllFilterChip({
                 <button onClick={() => setSubMenu(null)} className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-foreground">
                   <ChevronDown className="size-4 rotate-90" />
                 </button>
-                <span className="font-mono text-xs font-medium">café</span>
+                <span className="font-mono text-xs font-medium">Café</span>
                 <div className="flex gap-3">
                   <button
                     onClick={() => { cafeOptions.forEach(o => onToggleCafe(o.name)) }}
                     className="font-sans text-[11px] text-green-dark underline"
                   >
-                    all
+                    All
                   </button>
                   <button
                     onClick={() => { cafeOptions.forEach(o => { if (cafeFilter.has(o.name)) onToggleCafe(o.name) }) }}
                     className="font-sans text-[11px] text-muted-foreground underline"
                   >
-                    clear
+                    Clear
                   </button>
                 </div>
               </div>
@@ -387,19 +387,19 @@ function MobileAllFilterChip({
                 <button onClick={() => setSubMenu(null)} className="flex items-center justify-center p-2.5 text-muted-foreground hover:text-foreground">
                   <ChevronDown className="size-4 rotate-90" />
                 </button>
-                <span className="font-mono text-xs font-medium">location</span>
+                <span className="font-mono text-xs font-medium">Location</span>
                 <div className="flex gap-3">
                   <button
                     onClick={() => { locationOptions.forEach(o => onToggleLocation(o.name)) }}
                     className="font-sans text-[11px] text-green-dark underline"
                   >
-                    all
+                    All
                   </button>
                   <button
                     onClick={() => { locationOptions.forEach(o => { if (locationFilter.has(o.name)) onToggleLocation(o.name) }) }}
                     className="font-sans text-[11px] text-muted-foreground underline"
                   >
-                    clear
+                    Clear
                   </button>
                 </div>
               </div>
@@ -518,7 +518,7 @@ function FilterChip({
             {count}
           </span>
         )}
-        {label !== "all" && (
+        {label !== "All" && (
           <ChevronDown className={cn("size-3 opacity-50 transition-transform", isOpen && "rotate-180")} />
         )}
       </button>
@@ -535,10 +535,10 @@ function FilterChip({
             <span className="font-mono text-xs font-medium text-foreground">{label}</span>
             <div className="flex gap-3">
               <button onClick={onSelectAll} className="font-sans text-[11px] text-green-dark underline">
-                all
+                All
               </button>
               <button onClick={onClear} className="font-sans text-[11px] text-muted-foreground underline">
-                clear
+                Clear
               </button>
             </div>
           </div>
@@ -1064,9 +1064,9 @@ export default function HistoryPage() {
       onClearAll={() => { setCafeFilter(new Set()); setLocationFilter(new Set()) }}
     />
     <div className="ml-auto flex items-center gap-2">
-      <div className="flex rounded-xl border-2 border-green-light bg-transparent p-1">
-        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>ranking</button>
-        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>latest</button>
+      <div className="flex rounded-xl border-2 border-border bg-transparent p-1">
+        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>Ranking</button>
+        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>Latest</button>
       </div>
       <button onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} className="flex items-center justify-center p-1 text-green-dark transition-opacity hover:opacity-70" aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}>
         <ArrowUpDown className="size-5" />
@@ -1078,12 +1078,12 @@ export default function HistoryPage() {
   <div className="hidden md:flex md:items-center md:justify-between md:gap-3">
     <div className="flex items-center gap-2">
       <FilterChip
-        label="all"
+        label="All"
         active={activeFilterCount === 0}
         onClick={() => { setCafeFilter(new Set()); setLocationFilter(new Set()); setOpenFilter(null) }}
       />
       <FilterChip
-        label="café"
+        label="Café"
         active={cafeFilter.size > 0}
         count={cafeFilter.size}
         options={cafeOptions}
@@ -1096,7 +1096,7 @@ export default function HistoryPage() {
         onClick={() => setOpenFilter(openFilter === "cafe" ? null : "cafe")}
       />
       <FilterChip
-        label="location"
+        label="Location"
         active={locationFilter.size > 0}
         count={locationFilter.size}
         options={locationOptions}
@@ -1110,9 +1110,9 @@ export default function HistoryPage() {
       />
     </div>
     <div className="flex items-center gap-3">
-      <div className="flex rounded-xl border-2 border-green-light bg-transparent p-1">
-        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>ranking</button>
-        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>latest</button>
+      <div className="flex rounded-xl border-2 border-border bg-transparent p-1">
+        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>Ranking</button>
+        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>Latest</button>
       </div>
       <button onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} className="flex items-center justify-center p-1 text-green-dark transition-opacity hover:opacity-70" aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}>
         <ArrowUpDown className="size-5" />
