@@ -144,66 +144,6 @@ interface SelectionRect {
   containerHeight?: number
 }
 
-/**
- * Trims fully-transparent rows/columns from a PNG data URL, then resizes
- * so the longest edge is at most maxPx. Returns a PNG data URL.
- * Falls back to the original if anything fails.
- */
-async function trimAndResizePng(dataUrl: string, maxPx = 500): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      const w = img.naturalWidth
-      const h = img.naturalHeight
-      const tmp = document.createElement("canvas")
-      tmp.width = w
-      tmp.height = h
-      const ctx = tmp.getContext("2d")
-      if (!ctx) { resolve(dataUrl); return }
-      ctx.drawImage(img, 0, 0)
-      const data = ctx.getImageData(0, 0, w, h).data
-
-      // alpha is at index i*4+3
-      let top = h, bottom = 0, left = w, right = 0
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          if (data[(y * w + x) * 4 + 3] > 0) {
-            if (y < top) top = y
-            if (y > bottom) bottom = y
-            if (x < left) left = x
-            if (x > right) right = x
-          }
-        }
-      }
-
-      // Nothing visible — return original
-      if (top > bottom || left > right) { resolve(dataUrl); return }
-
-      // 2px padding so the edge pixels aren't clipped
-      const PAD = 2
-      const x0 = Math.max(0, left - PAD)
-      const y0 = Math.max(0, top - PAD)
-      const cw = Math.min(w, right + PAD + 1) - x0
-      const ch = Math.min(h, bottom + PAD + 1) - y0
-
-      // Scale so longest edge ≤ maxPx
-      const scale = Math.min(1, maxPx / Math.max(cw, ch))
-      const ow = Math.round(cw * scale)
-      const oh = Math.round(ch * scale)
-
-      const out = document.createElement("canvas")
-      out.width = ow
-      out.height = oh
-      const octx = out.getContext("2d")
-      if (!octx) { resolve(dataUrl); return }
-      octx.drawImage(tmp, x0, y0, cw, ch, 0, 0, ow, oh)
-      resolve(out.toDataURL("image/png"))
-    }
-    img.onerror = () => resolve(dataUrl)
-    img.src = dataUrl
-  })
-}
-
 // Receipt constants — single source of truth used by both preview and canvas export
 const RECEIPT_BG = "rgba(254,252,244,0.9)"
 const RECEIPT_RADIUS = 8
@@ -398,9 +338,8 @@ export function ShareStep({
       const result = await removeBackground(croppedBlob)
 
       const reader = new FileReader()
-      reader.onloadend = async () => {
-        const trimmed = await trimAndResizePng(reader.result as string, 500)
-        setBgRemovedImage(trimmed)
+      reader.onloadend = () => {
+        setBgRemovedImage(reader.result as string)
         setShowDrinkSticker(true)
         setIsBgProcessing(false)
       }
@@ -717,7 +656,7 @@ export function ShareStep({
         <a
           href={toastMessage.includes("history") ? "/history" : undefined}
           className={cn(
-            "fixed left-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
+            "fixed left-4 right-4 top-4 z-50 flex w-fit items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
             toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
           )}
           style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
