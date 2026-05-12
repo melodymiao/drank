@@ -322,7 +322,7 @@ function MobileAllFilterChip({
             : "border-green-light text-green-dark"
         )}
       >
-        all
+        All
         {activeFilterCount > 0 && (
           <span className="flex size-4 items-center justify-center rounded-full bg-foreground/15 text-[9px]">
             {activeFilterCount}
