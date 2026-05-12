@@ -34,16 +34,42 @@ function getRatingColor(rating: string): string {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Cup placeholder SVG (when no photo)
+   Cup placeholder SVGs (when no photo) — 3 variants, picked by index
 ─────────────────────────────────────────────────────────────── */
-function CupPlaceholder({ className }: { className?: string }) {
+const CUP_SVGS = [
+  // cup_1 — pink, tall boba cup
+  (
+    <svg viewBox="0 0 99 144" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3.137 24.0125C7.07079 24.0125 23.8587 23.5858 34.5447 22.8491C41.4896 22.3703 65.2899 21.8866 79.1468 22.8776C85.1953 23.3101 90.9097 23.7088 95.752 23.1975C97.6299 22.9992 96.3299 19.2569 95.6639 16.9157C95.0529 14.7681 91.7346 14.6499 89.5691 13.9353C85.3228 12.5339 86.8549 6.62385 85.7371 4.73053C83.3526 0.691785 72.3278 2.17524 65.0895 2.71594C59.132 3.16098 49.5079 3.89809 41.9284 3.28435C36.8237 2.871 27.3409 1.84976 19.698 3.06698C15.0445 3.8081 10.636 5.50465 7.61673 8.65506C6.64928 13.9127 4.51949 16.5765 2.92891 18.1379C2.29926 19.0591 2.03003 20.2421 2 22.5327" stroke="#F884A3" strokeWidth="4" strokeLinecap="round"/>
+      <path d="M10.3806 26.1785C10.3806 30.0721 10.967 41.6108 11.7471 47.3481C12.4264 52.3436 13.551 58.0068 14.4079 63.1576C15.2666 68.3191 18.564 84.6545 20.917 95.999C21.9702 101.077 22.363 105.813 23.1975 111.347C23.9528 116.357 24.5391 121.513 25.4058 126.475C25.9294 129.472 26.647 132.544 27.6852 134.836C29.7353 139.361 40.8212 138.174 51.1081 140.133C66.5797 143.079 78.4104 140.201 80.5551 139.243C81.6179 138.769 82.408 137.884 82.662 136.845C84.5639 129.062 82.8439 117.725 84.0628 112.072C85.528 105.275 85.8244 99.3233 86.3739 93.4398C86.7833 83.6086 87.0707 63.5962 87.3661 37.8698C87.5675 28.7601 87.8737 27.661 89.0295 24.4453" stroke="#F884A3" strokeWidth="4" strokeLinecap="round"/>
+    </svg>
+  ),
+  // cup_2 — yellow/green, tall cup with straw
+  (
+    <svg viewBox="0 0 97 188" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 68.2795C15.117 68.2795 45.2181 68.0356 52.0777 67.1815C60.245 66.1647 69.7872 64.1332 79.6414 63.7317C83.5496 63.5724 89.2341 63.5266 92.1889 62.3077C95.1436 61.0889 95.199 58.7921 94.7084 57.0999C93.8418 54.1111 89.5927 53.3406 85.7999 52.5146C80.1228 51.2783 79.0926 43.0375 74.7383 39.1732C70.2908 35.2261 64.5312 32.4445 58.4951 30.3383C52.0111 28.0759 45.0039 27.5516 30.9709 27.4545C23.3278 27.4016 19.0624 33.1225 14.1461 38.2784C9.83203 42.8027 9.58379 49.9031 6.19104 54.4201C5.33227 55.5635 3.65929 55.8323 3.07655 56.8754C2.4938 57.9185 2.75803 59.4337 3.0161 60.958C3.27417 62.4822 3.51808 63.9697 3.76938 66.8964" stroke="#E0DE96" strokeWidth="4" strokeLinecap="round"/>
+      <path d="M9.26221 66.5721C9.77219 71.679 11.2954 84.8188 12.1406 91.0492C13.1287 98.333 13.0137 108.898 15.1132 123.135C16.2852 131.083 19.5446 140.465 21.4495 148.522C23.3126 156.404 23.3068 162.931 24.4448 169.29C25.0051 172.421 25.2576 175.562 25.9679 178.392C29.7096 193.301 69.8712 181.32 74.8213 178.067C79.6083 174.921 77.5217 166.711 78.036 158.276C78.4648 151.243 79.3363 144.24 81.2589 131.379C82.6973 121.758 83.6392 110.89 84.2946 100.754C84.7648 82.2531 86.053 75.0171 86.9082 68.6906C87.2404 66.0025 87.366 64.3746 88.005 61.0176" stroke="#E0DE96" strokeWidth="4" strokeLinecap="round"/>
+      <path d="M41.2488 28.2352C41.4722 26.4039 41.7048 15.8296 42.6268 5.90259C42.951 2.41288 44.9088 2.37996 46.3974 2.2009C47.8861 2.02183 49.3384 1.77793 50.0247 2.40155C49.7778 7.46826 48.3935 13.4587 48.5681 18.9277C48.7427 21.25 49.0919 22.6524 50.1013 27.1938" stroke="#E0DE96" strokeWidth="4" strokeLinecap="round"/>
+    </svg>
+  ),
+  // cup_3 — blue, wide cup with handle
+  (
+    <svg viewBox="0 0 169 113" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M93.1383 6.95878C90.6715 6.75726 80.3823 4.64683 65.9237 2.65385C42.3581 -0.594443 23.7042 9.07027 14.4667 13.4928C8.73337 16.2377 4.61224 19.8674 2.46128 21.6657C1.49679 22.4721 2.19688 24.2309 3.08728 25.2824C6.87974 29.7608 14.6368 30.1318 23.9985 33.9704C38.0972 39.7514 73.4053 32.3144 86.5135 29.2873C94.1904 27.5144 103.789 24.2929 108.302 19.1131C110.652 16.415 109.371 12.2609 108.662 9.65316C106.536 7.63114 103.605 6.56683 100.646 6.1492C99.1574 5.91636 97.6958 5.64104 93.3567 4.74706" stroke="#9BCFEC" strokeWidth="4" strokeLinecap="round"/>
+      <path d="M2.62573 27.4131C2.62573 31.6054 3.35006 43.7899 4.62949 51.2928C6.31048 61.1506 8.3369 70.5735 9.64265 78.072C10.7463 84.4098 11.8409 90.5311 12.9091 96.5735C13.1934 98.1813 13.5745 99.8564 14.2201 101.295C14.8658 102.734 15.7897 103.882 17.7327 104.486C26.7309 107.283 33.7299 108.133 40.0675 109.84C47.1425 111.745 71.6497 110.904 89.9646 108.791C99.7126 107.667 104.594 102.365 107.526 99.6895C112.729 94.9413 111.366 85.4076 114.064 76.8953C118.526 62.8198 117.098 54.7088 117.368 32.5598C116.505 26.2242 115.382 23.185 114.526 20.3263C114.155 18.8848 113.911 17.462 113.66 15.3242" stroke="#9BCFEC" strokeWidth="4" strokeLinecap="round"/>
+      <path d="M121.65 41.5794C123.464 40.4576 130.53 37.1555 143.588 36.865C147.85 36.7702 150.343 40.5994 152.512 44.1605C156.356 50.4703 154.921 60.7039 151.354 69.5364C146.41 73.7859 141.726 75.0315 136.151 75.5775C131.95 75.7631 124.966 75.7631 115.933 73.4842" stroke="#9BCFEC" strokeWidth="4" strokeLinecap="round"/>
+      <path d="M121.739 34.395C123.36 33.8093 130.178 31.7775 139.02 30.7804C146.191 29.9717 153.24 28.8349 159.099 31.7874C165.219 34.871 165.668 43.0664 166.156 65.1162C166.291 71.2209 164.038 73.7573 162.072 75.9824C158.151 80.4211 151.608 81.7906 143.439 82.2886C139.867 82.8346 136.219 83.5737 130.414 84.1852C126.614 84.4328 121.08 84.5529 112.898 82.0394" stroke="#9BCFEC" strokeWidth="4" strokeLinecap="round"/>
+    </svg>
+  ),
+]
+
+function CupPlaceholder({ idx }: { idx: number }) {
+  const svg = CUP_SVGS[idx % 3]
   return (
-    <div className={cn("flex items-center justify-center bg-border/40", className)}>
-      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M3 2h14l-2 16A2 2 0 0 1 13 20H7a2 2 0 0 1-2-2L3 2Z" stroke="#473C23" strokeWidth="1.4" strokeOpacity="0.35" strokeLinejoin="round"/>
-        <path d="M1 2h18" stroke="#473C23" strokeWidth="1.4" strokeOpacity="0.35" strokeLinecap="round"/>
-        <path d="M8 22.5h4" stroke="#473C23" strokeWidth="1.4" strokeOpacity="0.35" strokeLinecap="round"/>
-      </svg>
+    <div className="size-20 shrink-0 flex items-center justify-center">
+      <div className="size-10 flex items-center justify-center [&>svg]:max-h-full [&>svg]:max-w-full [&>svg]:h-auto [&>svg]:w-auto">
+        {svg}
+      </div>
     </div>
   )
 }
@@ -293,10 +319,10 @@ function MobileAllFilterChip({
           "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-3 py-1.5 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
           active || isOpen
             ? "border-green-light bg-green-light font-medium text-foreground"
-            : "border-green-light text-green-dark"
+            : "border-green-light bg-green-light/25 text-green-dark"
         )}
       >
-        All
+        all
         {activeFilterCount > 0 && (
           <span className="flex size-4 items-center justify-center rounded-full bg-foreground/15 text-[9px]">
             {activeFilterCount}
@@ -509,7 +535,7 @@ function FilterChip({
             "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-3 py-1.5 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
             active || isOpen
             ? "border-green-light bg-green-light font-medium text-foreground"
-            : "border-green-light text-green-dark"
+            : "border-green-light bg-green-light/25 text-green-dark"
         )}
         >
         {label}
@@ -899,7 +925,7 @@ function ListItem({ receipt, idx, onClick, onDelete }: ListItemProps) {
                 )}
               />
             ) : (
-              <CupPlaceholder className="size-20 shrink-0 rounded-md" />
+              <CupPlaceholder idx={idx} />
             )
           })()}
 
