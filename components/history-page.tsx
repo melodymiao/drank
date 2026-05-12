@@ -296,7 +296,7 @@ function MobileAllFilterChip({
             : "border-green-light bg-green-light/25 text-green-dark"
         )}
       >
-        all
+        All
         {activeFilterCount > 0 && (
           <span className="flex size-4 items-center justify-center rounded-full bg-foreground/15 text-[9px]">
             {activeFilterCount}
@@ -509,7 +509,7 @@ function FilterChip({
             "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-3 py-1.5 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
             active || isOpen
             ? "border-green-light bg-green-light font-medium text-foreground"
-            : "border-green-light bg-green-light/25 text-green-dark"
+            : "border-green-light text-green-dark"
         )}
         >
         {label}
