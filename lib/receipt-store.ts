@@ -214,38 +214,16 @@ export async function saveReceipt(
   }
 
   const all = readAll()
-  // If a record with this id already exists (e.g. user went back and re-finished,
-  // or the user is editing a history entry), preserve fields that belong to the
-  // share step — they will be re-written when the user saves from the share step.
-  // Also preserve the original savedAt timestamp.
-  const existingIdx = all.findIndex((r) => r.id === id)
-  if (existingIdx !== -1) {
-    const prev = all[existingIdx]
-    all[existingIdx] = {
-      ...receipt,
-      savedAt: prev.savedAt,
-      bgRemovedImageDataUrl: prev.bgRemovedImageDataUrl,
-      showDrinkSticker: prev.showDrinkSticker,
-      receiptStickers: prev.receiptStickers,
-      storyStickers: prev.storyStickers,
-      savedCanvasDataUrl: prev.savedCanvasDataUrl,
-      savedCanvasPriority: prev.savedCanvasPriority,
-    }
+  // If a record with this id already exists (e.g. user went back and re-finished),
+  // preserve the original savedAt and update everything else.
+  const existing = all.findIndex((r) => r.id === id)
+  if (existing !== -1) {
+    all[existing] = { ...receipt, savedAt: all[existing].savedAt }
   } else {
     all.unshift(receipt) // newest first
   }
 
-  // Try writing with images. If storage is full, fall back to stripping images
-  // so the record (form data + metadata) always lands in localStorage even when
-  // photos can't fit. The share step will show the low-storage banner afterward.
-  try {
-    writeAll(all)
-  } catch {
-    const idx = existingIdx !== -1 ? existingIdx : 0
-    all[idx] = { ...all[idx], imageDataUrl: null, thumbnailDataUrl: null }
-    writeAll(all) // if this also throws, propagate — truly out of space
-  }
-
+  writeAll(all)
   return id
 }
 
@@ -261,18 +239,16 @@ export async function saveReceipt(
 export function updateReceipt(
   id: string,
   updates: Partial<Omit<SavedReceipt, "id" | "savedAt">>
-): void {
+): "ok" | "saved-without-drink-sticker" {
   const all = readAll()
   const idx = all.findIndex((r) => r.id === id)
   if (idx === -1) {
     console.warn(`[receipt-store] updateReceipt: id ${id} not found`)
-    return
+    return "ok"
   }
 
   const existing = all[idx]
 
-  // If the incoming update carries a canvas, only accept it when it is at least
-  // as "detailed" as what we already have stored.
   const incomingPriority = updates.savedCanvasPriority ?? -1
   const existingPriority = existing.savedCanvasPriority ?? -1
   const canvasUpdates =
@@ -289,11 +265,19 @@ export function updateReceipt(
 
   try {
     writeAll(all)
+    return "ok"
   } catch {
-    // Full write failed (likely QuotaExceededError from bgRemovedImageDataUrl or savedCanvasDataUrl).
-    // Retry without the heaviest blobs so at least the metadata lands.
-    all[idx] = { ...all[idx], bgRemovedImageDataUrl: null, savedCanvasDataUrl: null, savedCanvasPriority: -1 }
+    // Full write failed — likely the drink sticker PNG pushed over quota.
+    // Retry without it so metadata and canvas always land.
+    all[idx] = {
+      ...all[idx],
+      bgRemovedImageDataUrl: null,
+      showDrinkSticker: false,
+      savedCanvasDataUrl: null,
+      savedCanvasPriority: -1,
+    }
     writeAll(all) // propagate if still failing
+    return "saved-without-drink-sticker"
   }
 }
 
