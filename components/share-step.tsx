@@ -450,9 +450,9 @@ export function ShareStep({
           bgRemovedImageDataUrl: null,
         })
         setHasSaved(true)
-        showToast("Receipt saved without image")
+        showToast("Receipt saved to drank historywithout image")
       } catch {
-        showToast("Drank storage full")
+        showToast("Drank storage full - unable to save to drank history")
       }
     }
 
