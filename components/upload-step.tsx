@@ -112,6 +112,9 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
   const [isDragging, setIsDragging] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isConverting, setIsConverting] = useState(false)
+  // isProcessing fires immediately when a file is received — covers EXIF extraction delay
+  // which can feel laggy on desktop before isConverting kicks in for HEIC files
+  const [isProcessing, setIsProcessing] = useState(false)
 
   const MAX_FILE_SIZE_MB = 20
 
@@ -136,6 +139,8 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
         setUploadError(pickError(ERRORS.fileSize))
         return
       }
+
+      setIsProcessing(true)
 
       try {
         // Extract EXIF from raw file bytes BEFORE any conversion
@@ -164,6 +169,8 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
       } catch {
         setIsConverting(false)
         setUploadError(pickError(ERRORS.uploadFailed))
+      } finally {
+        setIsProcessing(false)
       }
     },
     [onImageUpload]
@@ -235,10 +242,12 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
             {/* Content inside the border — fills container height, no fixed aspect ratio */}
             <div className={`relative flex h-full w-full flex-col items-center justify-center gap-4 transition-all duration-300 ${isDragging ? "scale-[0.98]" : ""
               }`}>
-              {isConverting ? (
+              {isProcessing ? (
                 <div className="flex flex-col items-center gap-3">
                   <div className="size-8 animate-spin rounded-full border-2 border-muted-foreground border-t-foreground" />
-                  <p className="font-mono text-xs text-muted-foreground">converting photo…</p>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {isConverting ? "converting photo…" : "reading photo…"}
+                  </p>
                 </div>
               ) : (
                 <div className="flex w-[200px] flex-col gap-3">

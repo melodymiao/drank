@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import * as SliderPrimitive from "@radix-ui/react-slider"
 import { cn } from "@/lib/utils"
 
@@ -12,6 +13,7 @@ interface RatingSliderProps {
 export function RatingSlider({ value, onChange, error }: RatingSliderProps) {
   const numVal = value === "" ? 5.0 : parseFloat(value)
   const safeVal = isNaN(numVal) ? 5.0 : Math.min(10, Math.max(0, numVal))
+  const [pressing, setPressing] = useState(false)
 
   const handleSlider = (vals: number[]) => {
     onChange(vals[0].toFixed(1))
@@ -31,8 +33,6 @@ export function RatingSlider({ value, onChange, error }: RatingSliderProps) {
       onChange(Math.min(10, Math.max(0, num)).toFixed(1))
     }
   }
-
-  const pct = (safeVal / 10) * 100
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -58,8 +58,16 @@ export function RatingSlider({ value, onChange, error }: RatingSliderProps) {
             />
           </SliderPrimitive.Track>
           <SliderPrimitive.Thumb
-            className="block size-[22px] rounded-full border-2 border-white shadow-md transition-transform hover:scale-110 active:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E0DE96]/50"
-            style={{ backgroundColor: "#E0DE96" }}
+            onPointerDown={() => setPressing(true)}
+            onPointerUp={() => setPressing(false)}
+            onPointerLeave={() => setPressing(false)}
+            className="block size-[22px] rounded-full border-2 border-white shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E0DE96]/50"
+            style={{
+              backgroundColor: "#E0DE96",
+              // Grow on press, spring back — transition only on release so drag stays responsive
+              transform: pressing ? "scale(1.25)" : "scale(1)",
+              transition: pressing ? "transform 0.08s ease-out" : "transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
+            }}
           />
         </SliderPrimitive.Root>
 

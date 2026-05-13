@@ -2,11 +2,71 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Download, RotateCcw, ArrowLeft, Upload, X, CupSoda } from "lucide-react"
+import { RotateCcw, ArrowLeft, Upload, X, CupSoda } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ReceiptData, StickerItem } from "@/components/decorate-step"
 import { removeBackground } from "@imgly/background-removal"
 import { ERRORS, pickError } from "@/lib/errors"
+import { updateReceipt, resizeImage, type StoredSticker } from "@/lib/receipt-store"
+
+/* ============================================================
+   Rotating Loading Message
+   ============================================================ */
+
+const BG_REMOVAL_MESSAGES = [
+  "finding your drink...",
+  "cutting out the background...",
+  "separating drink from chaos...",
+  "this takes a minute, we promise it's worth it",
+  "running the magic scissors...",
+  "your drink is becoming a sticker",
+  "clipping paths, not coupons",
+  "hang tight, this part is hard",
+  "doing the hard work so you don't have to",
+]
+
+const PHOTO_CONVERTING_MESSAGES = [
+  "converting your photo...",
+  "reading the pixels...",
+  "wrangling the file...",
+  "almost ready...",
+]
+
+function RotatingMessage({ messages, className }: { messages: string[]; className?: string }) {
+  const [idx, setIdx] = useState(0)
+  const [visible, setVisible] = useState(true)
+  // Shuffle order on mount so messages don't always start the same
+  const order = useRef<number[]>([])
+  if (order.current.length === 0) {
+    const arr = messages.map((_, i) => i)
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    order.current = arr
+  }
+  const posRef = useRef(0)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => {
+        posRef.current = (posRef.current + 1) % order.current.length
+        setIdx(order.current[posRef.current])
+        setVisible(true)
+      }, 250)
+    }, 5500)
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <span
+      className={cn("transition-opacity duration-[250ms]", visible ? "opacity-100" : "opacity-0", className)}
+    >
+      {messages[idx]}
+    </span>
+  )
+}
 
 /* ============================================================
    Sticker Definitions
@@ -53,6 +113,7 @@ interface PlacedSticker {
   y: number // percentage 0-100
   scale: number // 1 = default
   rotation: number // degrees
+  isNew?: boolean // cleared after first render to avoid re-triggering
 }
 
 /* ============================================================
@@ -63,9 +124,15 @@ interface ShareStepProps {
   data: ReceiptData
   image: string | null
   stickers: StickerItem[]
+  receiptId: string
   onReset: () => void
   onBack: () => void
   onImageUpload: (image: string, exifDate?: string) => void
+  /** Restored from history edit — pre-populate share step state */
+  initialReceiptStickers?: StoredSticker[]
+  initialStoryStickers?: StoredSticker[]
+  initialShowDrinkSticker?: boolean
+  initialBgRemovedImage?: string
 }
 
 interface SelectionRect {
@@ -77,17 +144,73 @@ interface SelectionRect {
   containerHeight?: number
 }
 
+async function trimAndResizePng(dataUrl: string, maxPx = 500): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const w = img.naturalWidth
+      const h = img.naturalHeight
+      const tmp = document.createElement("canvas")
+      tmp.width = w
+      tmp.height = h
+      const ctx = tmp.getContext("2d")
+      if (!ctx) { resolve(dataUrl); return }
+      ctx.drawImage(img, 0, 0)
+      const data = ctx.getImageData(0, 0, w, h).data
+
+      let top = h, bottom = 0, left = w, right = 0
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (data[(y * w + x) * 4 + 3] > 0) {
+            if (y < top) top = y
+            if (y > bottom) bottom = y
+            if (x < left) left = x
+            if (x > right) right = x
+          }
+        }
+      }
+
+      if (top > bottom || left > right) { resolve(dataUrl); return }
+
+      const PAD = 2
+      const x0 = Math.max(0, left - PAD)
+      const y0 = Math.max(0, top - PAD)
+      const cw = Math.min(w, right + PAD + 1) - x0
+      const ch = Math.min(h, bottom + PAD + 1) - y0
+
+      const scale = Math.min(1, maxPx / Math.max(cw, ch))
+      const ow = Math.round(cw * scale)
+      const oh = Math.round(ch * scale)
+
+      const out = document.createElement("canvas")
+      out.width = ow
+      out.height = oh
+      const octx = out.getContext("2d")
+      if (!octx) { resolve(dataUrl); return }
+      octx.drawImage(tmp, x0, y0, cw, ch, 0, 0, ow, oh)
+      resolve(out.toDataURL("image/png"))
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
+}
+
 // Receipt constants — single source of truth used by both preview and canvas export
 const RECEIPT_BG = "rgba(254,252,244,0.9)"
-const RECEIPT_RADIUS = 2
+const RECEIPT_RADIUS = 8
 const TEXT_COLOR = "#473C23"
 
 export function ShareStep({
   data,
   image,
+  receiptId,
   onReset,
   onBack,
   onImageUpload,
+  initialReceiptStickers,
+  initialStoryStickers,
+  initialShowDrinkSticker,
+  initialBgRemovedImage,
 }: ShareStepProps) {
   const receiptCanvasRef = useRef<HTMLCanvasElement>(null)
   const storyCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -101,21 +224,27 @@ export function ShareStep({
   const [isPhotoConverting, setIsPhotoConverting] = useState(false)
 
   // Drink sticker state
-  const [showDrinkSticker, setShowDrinkSticker] = useState(false)
-  const [bgRemovedImage, setBgRemovedImage] = useState<string | null>(null)
+  const [showDrinkSticker, setShowDrinkSticker] = useState(initialShowDrinkSticker ?? false)
+  const [bgRemovedImage, setBgRemovedImage] = useState<string | null>(initialBgRemovedImage ?? null)
   const [isBgProcessing, setIsBgProcessing] = useState(false)
   const [bgError, setBgError] = useState<string | null>(null)
   const [selectionRect, setSelectionRect] = useState<SelectionRect | null>(null)
   const [showSelectionModal, setShowSelectionModal] = useState(false)
-  const [hasEverSelected, setHasEverSelected] = useState(false)
+  // If restoring from edit with an existing bg-removed image, treat it as already selected
+  const [hasEverSelected, setHasEverSelected] = useState(!!(initialBgRemovedImage))
 
   const [activeTab, setActiveTab] = useState<"story" | "receipt">(image ? "story" : "receipt")
-  const [saveModalUrl, setSaveModalUrl] = useState<string | null>(null)
-  const [saveModalFilename, setSaveModalFilename] = useState<string>("")
+  const [hasSaved, setHasSaved] = useState(false)
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
 
-  // Separate sticker arrays for each canvas
-  const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>([])
-  const [storyStickers, setStoryStickers] = useState<PlacedSticker[]>([])
+  // Separate sticker arrays for each canvas — restored from edit if available
+  const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>(
+    () => (initialReceiptStickers ?? []) as PlacedSticker[]
+  )
+  const [storyStickers, setStoryStickers] = useState<PlacedSticker[]>(
+    () => (initialStoryStickers ?? []) as PlacedSticker[]
+  )
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null)
 
   const activeStickers = activeTab === "receipt" ? receiptStickers : storyStickers
@@ -260,8 +389,9 @@ export function ShareStep({
       const result = await removeBackground(croppedBlob)
 
       const reader = new FileReader()
-      reader.onloadend = () => {
-        setBgRemovedImage(reader.result as string)
+      reader.onloadend = async () => {
+        const trimmed = await trimAndResizePng(reader.result as string, 500)
+        setBgRemovedImage(trimmed)
         setShowDrinkSticker(true)
         setIsBgProcessing(false)
       }
@@ -277,35 +407,100 @@ export function ShareStep({
     setShowSelectionModal(true)
   }, [])
 
-  const handleDownloadReceipt = useCallback(() => {
-    if (!receiptUrl) return
-    const filename = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}.png`
-    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-    if (isMobile) {
-      setSaveModalFilename(filename)
-      setSaveModalUrl(receiptUrl)
-    } else {
-      const link = document.createElement("a")
-      link.download = filename
-      link.href = receiptUrl
-      link.click()
-    }
-  }, [receiptUrl, data.drinkName])
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 3000)
+  }, [])
 
-  const handleDownloadStory = useCallback(() => {
-    if (!storyUrl) return
-    const filename = `drank-${data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"}-story.png`
-    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-    if (isMobile) {
-      setSaveModalFilename(filename)
-      setSaveModalUrl(storyUrl)
-    } else {
-      const link = document.createElement("a")
-      link.download = filename
-      link.href = storyUrl
-      link.click()
+  const handleSave = useCallback(async () => {
+    const url = activeTab === "story" ? storyUrl : receiptUrl
+    if (!url) return
+
+    const isFirstSave = !hasSaved
+    setHasAttemptedSave(true)
+
+    // Try full save first
+    try {
+      const priority = showDrinkSticker ? 1 : 0
+      const result = updateReceipt(receiptId, {
+        receiptStickers,
+        storyStickers,
+        showDrinkSticker,
+        savedCanvasDataUrl: receiptUrl ?? url,
+        savedCanvasPriority: priority,
+        ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
+      })
+      setHasSaved(true)
+      if (result === "saved-without-drink-sticker") {
+        showToast("Receipt saved without sticker")
+      } else {
+        showToast(isFirstSave ? "Saved to drank history" : "Drank history updated")
+      }
+    } catch {
+      // Full save failed — try saving without image
+      try {
+        updateReceipt(receiptId, {
+          receiptStickers,
+          storyStickers,
+          showDrinkSticker: false,
+          savedCanvasDataUrl: null,
+          savedCanvasPriority: -1,
+          imageDataUrl: null,
+          thumbnailDataUrl: null,
+          bgRemovedImageDataUrl: null,
+        })
+        setHasSaved(true)
+        showToast("Receipt saved to drank historywithout image")
+      } catch {
+        showToast("Drank storage full - unable to save to drank history")
+      }
     }
-  }, [storyUrl, data.drinkName])
+
+    const drinkSlug = data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"
+    const filename = activeTab === "story"
+      ? `drank-${drinkSlug}-story.png`
+      : `drank-${drinkSlug}.png`
+
+    const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
+    if (isMobile) {
+      try {
+        const res = await fetch(url)
+        const blob = await res.blob()
+        const file = new File([blob], filename, { type: "image/png" })
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file] })
+          return
+        }
+      } catch {
+        // fall through to link download
+      }
+    }
+
+    const link = document.createElement("a")
+    link.download = filename
+    link.href = url
+    link.click()
+  }, [activeTab, storyUrl, receiptUrl, hasSaved, receiptId, receiptStickers, storyStickers, showDrinkSticker, bgRemovedImage, data.drinkName, showToast])
+
+  const handleSaveWithoutPhoto = useCallback(() => {
+    try {
+      updateReceipt(receiptId, {
+        receiptStickers,
+        storyStickers,
+        showDrinkSticker: false,
+        savedCanvasDataUrl: null,
+        savedCanvasPriority: -1,
+        imageDataUrl: null,
+        thumbnailDataUrl: null,
+        bgRemovedImageDataUrl: null,
+      })
+      setHasSaved(true)
+      showToast("Stored in drank history without photo")
+    } catch {
+      showToast("Drank storage full")
+    }
+  }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, showToast])
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -352,8 +547,16 @@ export function ShareStep({
 
       onImageUpload(dataUrl)
       setActiveTab("story")
+
+      // Persist the newly uploaded image to the store so it survives edit/reload
+      Promise.all([
+        resizeImage(dataUrl, 800, 0.82),
+        resizeImage(dataUrl, 400, 0.82),
+      ]).then(([imageDataUrl, thumbnailDataUrl]) => {
+        updateReceipt(receiptId, { imageDataUrl, thumbnailDataUrl })
+      }).catch(() => { /* non-critical */ })
     },
-    [onImageUpload]
+    [onImageUpload, receiptId]
   )
 
   const handleAddSticker = useCallback((def: StickerDef) => {
@@ -366,9 +569,16 @@ export function ShareStep({
       y: 50,
       scale: 1,
       rotation: 0,
+      isNew: true,
     }
     setActiveStickers((prev) => [...prev, newSticker])
     setSelectedStickerId(newSticker.id)
+    // Clear isNew after animation completes so it doesn't retrigger on re-render
+    setTimeout(() => {
+      setActiveStickers((prev) =>
+        prev.map((s) => s.id === newSticker.id ? { ...s, isNew: false } : s)
+      )
+    }, 350)
   }, [setActiveStickers])
 
   const handleUpdateSticker = useCallback((id: string, updates: Partial<PlacedSticker>) => {
@@ -404,13 +614,13 @@ export function ShareStep({
         </button>
       ) : isPhotoConverting ? (
         <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
-          converting photo…
-          <div className="size-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+          <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+          <RotatingMessage messages={PHOTO_CONVERTING_MESSAGES} className="font-sans text-sm text-muted-foreground" />
         </span>
       ) : isBgProcessing ? (
         <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
-          this may take a minute...
-          <div className="size-4 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+          <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+          <RotatingMessage messages={BG_REMOVAL_MESSAGES} className="font-sans text-sm text-muted-foreground" />
         </span>
       ) : (
         <div className="flex w-full items-center justify-between">
@@ -490,8 +700,45 @@ export function ShareStep({
     </div>
   )
 
+  // Shown at top of content area only after user has attempted to save, and only when a photo exists
+  const SaveWithoutPhotoBanner = (image && hasAttemptedSave) ? (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-[#9BCFEC] bg-[#EAF6FD] px-4 py-3">
+      <p className="font-sans text-xs leading-snug text-[#2a6d8a]">
+        Store in{" "}
+        <a href="/history" className="underline hover:opacity-70">drank history</a>
+        {" "}without photo to free up drank storage
+      </p>
+      <button
+        onClick={handleSaveWithoutPhoto}
+        className="shrink-0 rounded-full border border-[#9BCFEC] bg-[#9BCFEC] px-4 py-2.5 font-mono text-xs text-foreground transition-opacity hover:opacity-80 active:scale-95"
+      >
+        Store without photo
+      </button>
+    </div>
+  ) : null
+
   return (
     <div className="flex h-full flex-col overflow-y-auto md:overflow-hidden">
+      {/* Toast notification */}
+      {toastMessage && (
+        <a
+          href={toastMessage.includes("history") ? "/history" : undefined}
+          className={cn(
+            "fixed left-4 right-4 top-4 z-50 flex w-fit items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
+            toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
+          )}
+          style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
+          onClick={toastMessage.includes("history") ? undefined : (e) => e.preventDefault()}
+        >
+          <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
+          {toastMessage.includes("history") && (
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-green-dark opacity-60">
+              <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </a>
+      )}
+
       {/* Hidden canvases for export */}
       <canvas ref={receiptCanvasRef} className="hidden" />
       <canvas ref={storyCanvasRef} className="hidden" />
@@ -515,17 +762,12 @@ export function ShareStep({
         />
       )}
 
-      {/* Save Image Modal — shown on mobile instead of <a download> */}
-      {saveModalUrl && (
-        <SaveImageModal
-          url={saveModalUrl}
-          filename={saveModalFilename}
-          onClose={() => setSaveModalUrl(null)}
-        />
-      )}
-
       {/* Main scrollable content */}
       <div className="mx-auto flex w-full max-w-[1100px] flex-col px-4 pt-3 md:h-full md:overflow-hidden md:px-6">
+        {/* Save without photo banner — full width, above both columns */}
+        {SaveWithoutPhotoBanner && (
+          <div className="mb-3 shrink-0">{SaveWithoutPhotoBanner}</div>
+        )}
         <div className="flex flex-col md:h-full md:flex-row md:gap-8 md:overflow-hidden">
 
           {/* Left column: Receipt/Story preview */}
@@ -588,11 +830,10 @@ export function ShareStep({
                 size="lg"
                 className="w-full max-w-[200px] bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
                 style={{ paddingTop: 24, paddingBottom: 24 }}
-                onClick={activeTab === "story" ? handleDownloadStory : handleDownloadReceipt}
+                onClick={handleSave}
                 disabled={isGenerating || (activeTab === "story" && !storyUrl)}
               >
-                <Download className="size-4" />
-                {activeTab === "story" ? "Download Story" : "Download Receipt"}
+                {activeTab === "story" ? "Save Story" : "Save Receipt"}
               </Button>
             </div>
 
@@ -630,7 +871,7 @@ export function ShareStep({
               {/* Stickers panel - single responsive wrapping group */}
               <div className="rounded-xl border border-border bg-card p-4">
                 <p className="mb-3 text-center font-sans text-xs text-muted-foreground">
-                  select a sticker to place it on your {activeTab === "story" ? "story" : "receipt"}
+                  Select a sticker to place it on your {activeTab === "story" ? "story" : "receipt"}
                 </p>
                 <div className="flex flex-wrap justify-center gap-3">
                   {STICKER_GROUPS.flat().map((sticker) => (
@@ -654,17 +895,16 @@ export function ShareStep({
         </div>
       </div>
 
-      {/* Mobile fixed bottom bar — Download only */}
+      {/* Mobile fixed bottom bar — Save only */}
       <div className="fixed inset-x-0 bottom-0 z-20 p-4 md:hidden">
         <Button
           size="lg"
           className="w-full bg-brown px-8 font-sans text-sm text-white hover:bg-brown/90"
           style={{ paddingTop: 24, paddingBottom: 24 }}
-          onClick={activeTab === "story" ? handleDownloadStory : handleDownloadReceipt}
+          onClick={handleSave}
           disabled={isGenerating || (activeTab === "story" && !storyUrl)}
         >
-          <Download className="size-4" />
-          {activeTab === "story" ? "Download Story" : "Download Receipt"}
+          {activeTab === "story" ? "Save Story" : "Save Receipt"}
         </Button>
       </div>
     </div>
@@ -995,7 +1235,7 @@ function ReceiptContent({
         <div className="my-3 flex justify-center">
           <div className="flex flex-col items-center gap-1">
             <div className="size-6 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-            <span className="text-[8px] text-muted-foreground">removing background...</span>
+            <RotatingMessage messages={BG_REMOVAL_MESSAGES} className="w-[120px] text-center text-[8px] text-muted-foreground" />
           </div>
         </div>
       ) : stickerImage ? (
@@ -1272,7 +1512,7 @@ function DraggableSticker({
       document.removeEventListener("touchmove", handleMove)
       document.removeEventListener("touchend", handleUp)
     }
-  }, [sticker.scale])
+  }, [])  // empty deps: handler reads resizeStartRef which is always current
 
   // ── Rotate ────────────────────────────────────────────────────────────────
 
@@ -1336,7 +1576,8 @@ function DraggableSticker({
         style={{
           left: `${sticker.x}%`,
           top: `${sticker.y}%`,
-          transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg) scale(${sticker.scale})`,
+          // Positioning + rotation only — scale lives on inner scaler div
+          transform: `translate(-50%, -50%) rotate(${sticker.rotation}deg)`,
           transformOrigin: "center center",
           userSelect: "none",
           touchAction: "none",
@@ -1346,17 +1587,32 @@ function DraggableSticker({
         onTouchStart={handleDragStart}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Scale wrapper — animation owns transform when isNew, inline style takes over after */}
         <div
-          className="flex items-center justify-center rounded-full px-3 font-sans text-xs font-semibold"
           style={{
-            backgroundColor: sticker.bg,
-            color: sticker.textColor,
-            height: PILL_H,
-            whiteSpace: "nowrap",
-            cursor: "grab",
+            // When isNew: animation drives scale (inline transform must be absent so keyframe wins)
+            // After isNew: inline transform sets the current scale
+            transform: sticker.isNew ? undefined : `scale(${sticker.scale})`,
+            transformOrigin: "center center",
+            animation: sticker.isNew
+              ? `drank-sticker-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards`
+              : undefined,
+            // CSS var lets the keyframe know the target scale to land on
+            ["--sticker-scale" as string]: sticker.scale,
           }}
         >
-          {sticker.text}
+          <div
+            className="flex items-center justify-center rounded-full px-3 font-sans text-xs font-semibold"
+            style={{
+              backgroundColor: sticker.bg,
+              color: sticker.textColor,
+              height: PILL_H,
+              whiteSpace: "nowrap",
+              cursor: "grab",
+            }}
+          >
+            {sticker.text}
+          </div>
         </div>
       </div>
 
@@ -1409,9 +1665,9 @@ function DraggableSticker({
             <X className="size-3" />
           </button>
 
-          {/* Rotation handle — above center (desktop only) */}
+          {/* Rotation handle — above center */}
           <div
-            className="absolute left-1/2 -translate-x-1/2 md:flex hidden"
+            className="absolute left-1/2 -translate-x-1/2 flex"
             style={{ top: -(halfH + PAD + 28), flexDirection: "column", alignItems: "center", gap: 0, pointerEvents: "auto" }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1429,7 +1685,7 @@ function DraggableSticker({
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
             onClick={(e) => e.stopPropagation()}
-            className="absolute rounded-sm bg-pink-dark md:block hidden"
+            className="absolute rounded-sm bg-pink-dark block"
             style={{
               width: 12, height: 12,
               top: -(halfH + PAD + 6),
@@ -1441,12 +1697,29 @@ function DraggableSticker({
             }}
           />
 
+          {/* Resize handle — top-right (desktop only) */}
+          <div
+            onMouseDown={handleResizeStart}
+            onTouchStart={handleResizeStart}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute rounded-sm bg-pink-dark block"
+            style={{
+              width: 12, height: 12,
+              top: -(halfH + PAD + 6),
+              right: -(halfW + PAD + 6),
+              cursor: "ne-resize",
+              touchAction: "none",
+              zIndex: 30,
+              pointerEvents: "auto",
+            }}
+          />
+
           {/* Resize handle — bottom-left (desktop only) */}
           <div
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
             onClick={(e) => e.stopPropagation()}
-            className="absolute rounded-sm bg-pink-dark md:block hidden"
+            className="absolute rounded-sm bg-pink-dark block"
             style={{
               width: 12, height: 12,
               bottom: -(halfH + PAD + 6),
@@ -1463,7 +1736,7 @@ function DraggableSticker({
             onMouseDown={handleResizeStart}
             onTouchStart={handleResizeStart}
             onClick={(e) => e.stopPropagation()}
-            className="absolute rounded-sm bg-pink-dark md:block hidden"
+            className="absolute rounded-sm bg-pink-dark block"
             style={{
               width: 12, height: 12,
               bottom: -(halfH + PAD + 6),
@@ -1483,58 +1756,6 @@ function DraggableSticker({
 /* ============================================================
    Save Image Modal (mobile)
    ============================================================ */
-
-function SaveImageModal({
-  url,
-  filename,
-  onClose,
-}: {
-  url: string
-  filename: string
-  onClose: () => void
-}) {
-  const handleBrowserDownload = () => {
-    const link = document.createElement("a")
-    link.download = filename
-    link.href = url
-    link.click()
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-card p-6 shadow-xl">
-        <h3 className="mb-2 text-center font-mono text-base font-medium text-foreground">
-          Save your image
-        </h3>
-        <p className="mb-4 text-center font-sans text-sm text-muted-foreground">
-          Press and hold the image below, then tap "Save to Photos"
-        </p>
-        <div className="mb-4 flex justify-center">
-          <img
-            src={url}
-            alt="Receipt to save"
-            className="max-h-64 rounded-lg object-contain shadow-md"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Button
-            className="w-full bg-brown font-sans text-sm text-white hover:bg-brown/90"
-            onClick={onClose}
-          >
-            Done
-          </Button>
-          <button
-            onClick={handleBrowserDownload}
-            className="font-sans text-xs text-muted-foreground underline transition-colors hover:opacity-70"
-          >
-            download to browser instead
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 /* ============================================================
    Foreground Selection Modal
