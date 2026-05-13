@@ -452,7 +452,7 @@ export function ShareStep({
         setHasSaved(true)
         showToast("Receipt saved without image")
       } catch {
-        showToast("Storage full")
+        showToast("Drank storage full")
       }
     }
 
@@ -498,7 +498,7 @@ export function ShareStep({
       setHasSaved(true)
       showToast("Stored in drank history without photo")
     } catch {
-      showToast("Storage full")
+      showToast("Drank storage full")
     }
   }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, showToast])
 
