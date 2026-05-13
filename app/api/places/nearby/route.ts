@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
               Math.sin(dLng / 2) ** 2
           const distance = 2 * 6371000 * Math.asin(Math.sqrt(a))
 
-          if (distance <= 300) {
+          if (distance <= 100) {
             allResults.push({ name: place.name, distance })
           }
         }
