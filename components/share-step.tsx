@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import type { ReceiptData, StickerItem } from "@/components/decorate-step"
 import { removeBackground } from "@imgly/background-removal"
 import { ERRORS, pickError } from "@/lib/errors"
-import { updateReceipt, resizeImage, getStorageStatus, type StoredSticker } from "@/lib/receipt-store"
+import { updateReceipt, resizeImage, type StoredSticker } from "@/lib/receipt-store"
 
 /* ============================================================
    Rotating Loading Message
@@ -417,31 +417,43 @@ export function ShareStep({
     if (!url) return
 
     const isFirstSave = !hasSaved
-    const storageStatus = getStorageStatus()
     setHasAttemptedSave(true)
 
-    if (storageStatus.level !== "critical") {
+    // Try full save first
+    try {
+      const priority = showDrinkSticker ? 1 : 0
+      const result = updateReceipt(receiptId, {
+        receiptStickers,
+        storyStickers,
+        showDrinkSticker,
+        savedCanvasDataUrl: receiptUrl ?? url,
+        savedCanvasPriority: priority,
+        ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
+      })
+      setHasSaved(true)
+      if (result === "saved-without-drink-sticker") {
+        showToast("Receipt saved without sticker")
+      } else {
+        showToast(isFirstSave ? "Saved to drank history" : "Drank history updated")
+      }
+    } catch {
+      // Full save failed — try saving without image
       try {
-        const priority = showDrinkSticker ? 1 : 0
-        const result = updateReceipt(receiptId, {
+        updateReceipt(receiptId, {
           receiptStickers,
           storyStickers,
-          showDrinkSticker,
-          savedCanvasDataUrl: receiptUrl ?? url,
-          savedCanvasPriority: priority,
-          ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
+          showDrinkSticker: false,
+          savedCanvasDataUrl: null,
+          savedCanvasPriority: -1,
+          imageDataUrl: null,
+          thumbnailDataUrl: null,
+          bgRemovedImageDataUrl: null,
         })
         setHasSaved(true)
-        if (result === "saved-without-drink-sticker") {
-          showToast("Storage low — saved without drink sticker")
-        } else {
-          showToast(isFirstSave ? "Saved to drank history" : "Drank history updated")
-        }
+        showToast("Receipt saved without image")
       } catch {
-        showToast("Not enough drank storage — store without photo to free up space")
+        showToast("Storage full")
       }
-    } else {
-      showToast("Not enough drank storage — store without photo to free up space")
     }
 
     const drinkSlug = data.drinkName?.replace(/\s+/g, "-").toLowerCase() || "receipt"
@@ -486,7 +498,7 @@ export function ShareStep({
       setHasSaved(true)
       showToast("Stored in drank history without photo")
     } catch {
-      showToast("Not enough drank storage to save")
+      showToast("Storage full")
     }
   }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, showToast])
 
