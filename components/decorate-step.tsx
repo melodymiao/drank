@@ -85,11 +85,13 @@ const CAFE_CHAINS = [
 function LocationInput({
   value,
   onChange,
+  onCafeChange,
   imageExifLocation,
   cafeName,
 }: {
   value: string
   onChange: (val: string) => void
+  onCafeChange?: (val: string) => void
   imageExifLocation?: string | null
   cafeName?: string
 }) {
@@ -194,10 +196,10 @@ function LocationInput({
           const params = new URLSearchParams({ latlng: `${latitude},${longitude}` })
           const res = await fetch(`/api/places/geocode?${params}`)
           const json = await res.json()
-          const city = json.results?.[0]?.address_components?.find(
-            (c: { types: string[] }) => c.types.includes("locality")
-          )?.long_name
-          if (city) onChange(city)
+          if (json.city) onChange(json.city)
+          if (json.businessName && onCafeChange) onCafeChange(json.businessName)
+          // Pre-load location suggestions for the detected café
+          if (json.businessName) fetchCafeLocations(json.businessName)
         } catch {
           // silently fail
         } finally {
@@ -579,6 +581,7 @@ export function DecorateStep({
                 <LocationInput
                   value={data.location}
                   onChange={(val) => onUpdate({ location: val })}
+                  onCafeChange={(val) => { if (!data.cafeName) onUpdate({ cafeName: val }) }}
                   imageExifLocation={exifLocation}
                   cafeName={data.cafeName}
                 />
