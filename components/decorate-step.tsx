@@ -351,12 +351,14 @@ function CafeInput({
   }
 
   const handleFocus = () => {
-    // Show nearby suggestions when field is focused and no typed suggestions exist yet
+    // Show nearby suggestions when focused and no typed suggestions exist yet
+    // Exclude the current value so the autofilled name doesn't show as a suggestion
     if (suggestions.length === 0 && nearbyNames.length > 0) {
       const query = value.toLowerCase()
-      const filtered = query
-        ? nearbyNames.filter((n) => n.toLowerCase().includes(query))
-        : nearbyNames
+      const filtered = nearbyNames.filter((n) =>
+        n.toLowerCase() !== value.toLowerCase() &&
+        (query.length === 0 || n.toLowerCase().includes(query))
+      )
       if (filtered.length > 0) {
         setSuggestions(filtered)
         setOpen(true)

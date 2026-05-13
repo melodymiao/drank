@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         const res = await fetch(url.toString())
         const json = await res.json()
 
-        for (const place of json.results?.slice(0, 5) ?? []) {
+        for (const place of json.results?.slice(0, 10) ?? []) {
           const placeLat: number = place.geometry?.location?.lat
           const placeLng: number = place.geometry?.location?.lng
           if (placeLat == null || placeLng == null || !place.name) continue
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
               Math.sin(dLng / 2) ** 2
           const distance = 2 * 6371000 * Math.asin(Math.sqrt(a))
 
-          if (distance <= 200) {
+          if (distance <= 300) {
             allResults.push({ name: place.name, distance })
           }
         }
