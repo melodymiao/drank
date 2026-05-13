@@ -53,21 +53,27 @@ type FormErrors = Partial<Record<keyof ReceiptData, string>>
 /* ================= Café Chain List ================= */
 
 const CAFE_CHAINS = [
-  "Starbucks", "Dunkin'", "Dutch Bros", "Peet's Coffee", "Philz Coffee",
-  "Blue Bottle Coffee", "Intelligentsia", "Verve Coffee", "Equator Coffees",
-  "Lavazza", "Costa Coffee", "Tim Hortons", "Caribou Coffee", "Biggby Coffee",
-  "The Coffee Bean & Tea Leaf", "Panera Bread", "McDonald's", "Chick-fil-A",
+  "Starbucks", "Dunkin'", "Peet's Coffee", "Philz Coffee", "Urth Caffé", 
+  "Blue Bottle Coffee", "Equator Coffees", "Lavazza", "The Coffee Bean & Tea Leaf", 
+  "Em Coffee House", "Better Buzz Coffee", "Parakeet Cafe", "Qargo Coffee", 
+  "Cafe Milano", "8 Grams Matcha", "Caffè Strada", "Gold Bean Cafe", "elaichi co.", 
+  "Yali's Café", "Victory Point Cafe", "Mind Coffee", "Delah Coffee", "Jaffa Coffee Roasters", 
+  "Café Etoile", "edmonds cafe", "Yali's Qualcomm Café", "Red Rock Coffee", "Verve Coffee Roasters", 
+  "Cafenated Coffee Company", "Romeo's Coffee", "Tadaima", "The Hidden Cafe", "Stonemill Matcha", 
+  "Souvenir Coffee Co.", "Sightglass Coffee", "Sodoi Coffee Tasting House", "1951 Coffee Company", 
+  "luckin coffee", "JOE & THE JUICE", "Jamba Juice", "ASHA TEA HOUSE", 
   // Boba / tea / matcha chains
-  "Gong Cha", "Tiger Sugar", "HEYTEA", "Boba Guys", "Tea Do", "Matcha Cafe Maiko",
-  "Binge Coffee House", "HINAR Dessert Bar & Café", "LABORA", "3CAT", "3CAT Handcrafted Beverage",
-  "CHAGEE Modern Teahouse", "CHAGEE", "Easy Does It", "yun tea house", "Sunright Tea Studio",
-  "OMOMO TEA SHOPPE", "BOPOMOFO CAFE", "Junbi Matcha & Tea", "Kiss of Matcha", 
-  "Boba Guys", 
-  "Yi Fang", "Presotea", "Kung Fu Tea", "Sharetea", "Tastea", "Quickly",
-  "Ding Tea", "Happy Lemon", "Coco Fresh Tea & Juice", "Koi Thé",
-  "Tealive", "Moge Tee", "Boba Story", "85°C Bakery Cafe",
-  "Cafe Gratitude", "Urth Caffé", "Alfred Coffee", "Groundwork Coffee",
-  "Caffe Luxxe", "Jones Coffee Roasters", "Dayglow",
+  "Gong Cha", "HEYTEA", "Boba Guys", "Matcha Cafe Maiko", "WUSHILAND BOBA", 
+  "Binge Coffee House", "HINAR Dessert Bar & Café", "LABORA", "3CAT Handcrafted Beverage",
+  "CHAGEE Modern Teahouse", "CHAGEE Modern Teahouse", "Easy Does It", "yun tea house", "Sunright Tea Studio",
+  "OMOMO TEA SHOPPE", "BOPOMOFO CAFE", "Junbi Matcha & Tea", "Kiss of Matcha", "Urban Matcha",
+  "Yi Fang", "Presotea", "Kung Fu Tea", "Sharetea", "Tastea", "torotea", "rōk coffee and tea", 
+  "STAGGER COFFEE", "Café Alessie", "ELOREA", "Boba Religion", "Phinology", 
+  "Ding Tea", "Happy Lemon", "Molly Tea", "Community Goods", "CHICHA San Chen",
+  "Moge Tee", "85°C Bakery Cafe", "DAMO", "The Alley", "Teaspoon", "Arteazen", 
+  "CHAKAA", "BenGong's Tea", "Camellia Rd Tea Bar", "Sharetea", "7 Leaves Cafe", 
+  "GARA", "Raleigh's Pub", "TP TEA", "De Matcha", "Yifang Taiwan Fruit Tea", "ZERO&", 
+  "Tancca", "Sana'a Cafe", "Plentea", "FENG CHA", "RareTea", "Boba Ninja", "Sweetheart Café", 
 ]
 
  
