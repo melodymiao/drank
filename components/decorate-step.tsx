@@ -299,7 +299,6 @@ function CafeInput({
   const nearbyFetchedRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Fetch nearby food/café businesses once when GPS coords are available
   useEffect(() => {
     if (!nearbyCoords || nearbyFetchedRef.current) return
     nearbyFetchedRef.current = true
@@ -311,7 +310,7 @@ function CafeInput({
           setNearbyNames(json.names)
         }
       })
-      .catch(() => {/* silently fail */})
+      .catch(() => {})
   }, [nearbyCoords])
 
   useEffect(() => {
@@ -350,14 +349,10 @@ function CafeInput({
     setSuggestions([])
   }
 
-  const handleFocus = () => {
-    // Show nearby suggestions when focused and no typed suggestions exist yet
-    // Exclude the current value so the autofilled name doesn't show as a suggestion
-    if (suggestions.length === 0 && nearbyNames.length > 0) {
-      const query = value.toLowerCase()
-      const filtered = nearbyNames.filter((n) =>
-        n.toLowerCase() !== value.toLowerCase() &&
-        (query.length === 0 || n.toLowerCase().includes(query))
+  const handleCafeFocus = () => {
+    if (nearbyNames.length > 0) {
+      const filtered = nearbyNames.filter(
+        (n) => n.toLowerCase() !== value.toLowerCase()
       )
       if (filtered.length > 0) {
         setSuggestions(filtered)
@@ -380,7 +375,7 @@ function CafeInput({
         placeholder="HEYTEA"
         value={value}
         onChange={handleChange}
-        onFocus={handleFocus}
+        onFocus={handleCafeFocus}
         maxLength={40}
         className={cn(
           "w-full rounded-lg border-2 border-border bg-secondary px-4 py-3",

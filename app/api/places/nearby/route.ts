@@ -18,7 +18,6 @@ export async function GET(request: NextRequest) {
     const lat = parseFloat(latStr)
     const lng = parseFloat(lngStr)
 
-    // Search for cafes, restaurants, and bakeries nearby
     const types = ["cafe", "restaurant", "bakery"]
     const allResults: { name: string; distance: number }[] = []
 
@@ -54,7 +53,6 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    // Deduplicate by name, sort by distance, return top 5
     const seen = new Set<string>()
     const names = allResults
       .sort((a, b) => a.distance - b.distance)
