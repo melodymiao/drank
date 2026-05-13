@@ -55,7 +55,7 @@ async function extractExifData(file: File): Promise<{ date?: string; location?: 
         console.log("computed coords:", { lat, lng })
 
         const params = new URLSearchParams({ latlng: `${lat},${lng}` })
-        const res = await fetch(`/api/geocode?${params}`)
+        const res = await fetch(`/api/places/geocode?${params}`)
         const json = await res.json()
 
         console.log("geocode response:", json)
