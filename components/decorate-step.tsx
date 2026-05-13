@@ -46,6 +46,7 @@ interface DecorateStepProps {
   onUpdate: (data: Partial<ReceiptData>) => void
   onNext: () => void
   onBack: () => void
+  exifCoords?: { lat: number; lng: number } | null
 }
 
 type FormErrors = Partial<Record<keyof ReceiptData, string>>
@@ -284,15 +285,34 @@ function CafeInput({
   onChange,
   error,
   pastEntries,
+  nearbyCoords,
 }: {
   value: string
   onChange: (val: string) => void
   error?: string
   pastEntries: string[]
+  nearbyCoords?: { lat: number; lng: number } | null
 }) {
   const [open, setOpen] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
+  const [nearbyNames, setNearbyNames] = useState<string[]>([])
+  const nearbyFetchedRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Fetch nearby food/cafe businesses once when coords are available
+  useEffect(() => {
+    if (!nearbyCoords || nearbyFetchedRef.current) return
+    nearbyFetchedRef.current = true
+    const { lat, lng } = nearbyCoords
+    fetch(`/api/places/nearby?latlng=${lat},${lng}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (Array.isArray(json.names) && json.names.length > 0) {
+          setNearbyNames(json.names)
+        }
+      })
+      .catch(() => {/* silently fail */})
+  }, [nearbyCoords])
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -315,8 +335,8 @@ function CafeInput({
     }
 
     const query = val.toLowerCase()
-    // Combine past entries (deduplicated) + chain list, filter by prefix
-    const all = [...new Set([...pastEntries, ...CAFE_CHAINS])]
+    // Nearby names first, then past entries, then chain list
+    const all = [...new Set([...nearbyNames, ...pastEntries, ...CAFE_CHAINS])]
     const matches = all
       .filter((c) => c.toLowerCase().includes(query) && c.toLowerCase() !== query)
       .slice(0, 6)
@@ -328,6 +348,22 @@ function CafeInput({
     onChange(suggestion)
     setOpen(false)
     setSuggestions([])
+  }
+
+  const handleFocus = () => {
+    // When typing hasn't started yet, show nearby suggestions if available
+    if ((!value || suggestions.length === 0) && nearbyNames.length > 0) {
+      const query = value.toLowerCase()
+      const filtered = query
+        ? nearbyNames.filter((n) => n.toLowerCase().includes(query))
+        : nearbyNames
+      if (filtered.length > 0) {
+        setSuggestions(filtered)
+        setOpen(true)
+        return
+      }
+    }
+    if (suggestions.length > 0) setOpen(true)
   }
 
   return (
@@ -342,7 +378,7 @@ function CafeInput({
         placeholder="HEYTEA"
         value={value}
         onChange={handleChange}
-        onFocus={() => { if (suggestions.length > 0) setOpen(true) }}
+        onFocus={handleFocus}
         maxLength={40}
         className={cn(
           "w-full rounded-lg border-2 border-border bg-secondary px-4 py-3",
@@ -383,6 +419,7 @@ export function DecorateStep({
   onUpdate,
   onNext,
   onBack,
+  exifCoords,
 }: DecorateStepProps) {
   // Desktop: one section open at a time. Mobile: both start open, toggle independently.
   const [openSection, setOpenSection] = useState<"basics" | "customizations" | null>("basics")
@@ -528,6 +565,7 @@ export function DecorateStep({
                   onChange={(val) => { onUpdate({ cafeName: val }); clearError("cafeName") }}
                   error={errors.cafeName}
                   pastEntries={pastCafeEntries}
+                  nearbyCoords={exifCoords}
                 />
 
                 <TextInput

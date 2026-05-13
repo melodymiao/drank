@@ -43,6 +43,7 @@ export default function DrankApp() {
   const [stickers, setStickers] = useState<StickerItem[]>([])
   const [receiptId, setReceiptId] = useState(() => generateId())
 
+  const [exifCoords, setExifCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [leaveTarget, setLeaveTarget] = useState<string | null>(null)
 
@@ -105,7 +106,7 @@ export default function DrankApp() {
   }, [])
 
   const handleImageUpload = useCallback(
-    (img: string, exifDate?: string, exifLocation?: string, exifCafe?: string) => {
+    (img: string, exifDate?: string, exifLocation?: string, exifCafe?: string, exifLat?: number, exifLng?: number) => {
       setImage(img || null)
       const updates: Partial<ReceiptData> = {}
       if (exifDate) {
@@ -115,6 +116,7 @@ export default function DrankApp() {
       }
       if (exifLocation) updates.location = exifLocation
       if (exifCafe) updates.cafeName = exifCafe
+      if (exifLat != null && exifLng != null) setExifCoords({ lat: exifLat, lng: exifLng })
       if (Object.keys(updates).length > 0) {
         setReceiptData((prev) => ({ ...prev, ...updates }))
       }
@@ -238,6 +240,7 @@ export default function DrankApp() {
               onUpdate={handleReceiptUpdate}
               onNext={handleEnterShare}
               onBack={() => setStep(1)}
+              exifCoords={exifCoords}
             />
           </div>
         )}
