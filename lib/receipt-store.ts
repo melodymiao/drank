@@ -243,8 +243,7 @@ export function updateReceipt(
   const all = readAll()
   const idx = all.findIndex((r) => r.id === id)
   if (idx === -1) {
-    console.warn(`[receipt-store] updateReceipt: id ${id} not found`)
-    return "ok"
+    throw new Error(`[receipt-store] updateReceipt: id ${id} not found`)
   }
 
   const existing = all[idx]
