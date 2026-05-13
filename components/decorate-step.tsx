@@ -299,7 +299,7 @@ function CafeInput({
   const nearbyFetchedRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Fetch nearby food/cafe businesses once when coords are available
+  // Fetch nearby food/café businesses once when GPS coords are available
   useEffect(() => {
     if (!nearbyCoords || nearbyFetchedRef.current) return
     nearbyFetchedRef.current = true
@@ -351,8 +351,8 @@ function CafeInput({
   }
 
   const handleFocus = () => {
-    // When typing hasn't started yet, show nearby suggestions if available
-    if ((!value || suggestions.length === 0) && nearbyNames.length > 0) {
+    // Show nearby suggestions when field is focused and no typed suggestions exist yet
+    if (suggestions.length === 0 && nearbyNames.length > 0) {
       const query = value.toLowerCase()
       const filtered = query
         ? nearbyNames.filter((n) => n.toLowerCase().includes(query))

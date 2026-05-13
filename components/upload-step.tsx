@@ -7,7 +7,7 @@ import { ERRORS, pickError } from "@/lib/errors"
 
 interface UploadStepProps {
   image: string | null
-  onImageUpload: (image: string, exifDate?: string, exifLocation?: string, exifCafe?: string) => void
+  onImageUpload: (image: string, exifDate?: string, exifLocation?: string, exifCafe?: string, exifLat?: number, exifLng?: number) => void
   onNext: () => void
   onSkip: () => void
 }
@@ -16,7 +16,7 @@ interface UploadStepProps {
  * Extract date and GPS location from any image file using exifr.
  * Works with JPEG and HEIC/HEIF on the raw bytes before any conversion.
  */
-async function extractExifData(file: File): Promise<{ date?: string; location?: string; cafe?: string }> {
+async function extractExifData(file: File): Promise<{ date?: string; location?: string; cafe?: string; lat?: number; lng?: number }> {
   try {
     const exifr = (await import("exifr")).default
     const exif = await exifr.parse(file, {
@@ -67,8 +67,8 @@ async function extractExifData(file: File): Promise<{ date?: string; location?: 
       }
     }
 
-    console.log("extractExifData returning:", { date, location, cafe })
-    return { date, location, cafe }
+    console.log("extractExifData returning:", { date, location, cafe, lat, lng })
+    return { date, location, cafe, lat, lng }
   } catch (err) {
     console.error("extractExifData error:", err)
     return {}
@@ -146,7 +146,7 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
 
       try {
         // Extract EXIF from raw file bytes BEFORE any conversion
-        const { date: exifDate, location: exifLocation, cafe: exifCafe } = await extractExifData(file)
+        const { date: exifDate, location: exifLocation, cafe: exifCafe, lat: exifLat, lng: exifLng } = await extractExifData(file)
         console.log("processFile got exif:", { exifDate, exifLocation, exifCafe })
 
         let dataUrl: string
@@ -167,7 +167,7 @@ export function UploadStep({ image, onImageUpload, onNext, onSkip }: UploadStepP
           })
         }
 
-        onImageUpload(dataUrl, exifDate, exifLocation, exifCafe)
+        onImageUpload(dataUrl, exifDate, exifLocation, exifCafe, exifLat, exifLng)
       } catch {
         setIsConverting(false)
         setUploadError(pickError(ERRORS.uploadFailed))
