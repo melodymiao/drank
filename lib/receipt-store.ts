@@ -249,6 +249,8 @@ export function updateReceipt(
 
   const existing = all[idx]
 
+  // If the incoming update carries a canvas, only accept it when it is at least
+  // as "detailed" as what we already have stored.
   const incomingPriority = updates.savedCanvasPriority ?? -1
   const existingPriority = existing.savedCanvasPriority ?? -1
   const canvasUpdates =

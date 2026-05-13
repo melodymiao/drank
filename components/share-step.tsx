@@ -423,7 +423,7 @@ export function ShareStep({
     if (storageStatus.level !== "critical") {
       try {
         const priority = showDrinkSticker ? 1 : 0
-        updateReceipt(receiptId, {
+        const result = updateReceipt(receiptId, {
           receiptStickers,
           storyStickers,
           showDrinkSticker,
@@ -432,7 +432,11 @@ export function ShareStep({
           ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
         })
         setHasSaved(true)
-        showToast(isFirstSave ? "Saved to drank history" : "Drank history updated")
+        if (result === "saved-without-drink-sticker") {
+          showToast("Storage low — saved without drink sticker")
+        } else {
+          showToast(isFirstSave ? "Saved to drank history" : "Drank history updated")
+        }
       } catch {
         showToast("Not enough drank storage — store without photo to free up space")
       }
@@ -708,7 +712,7 @@ export function ShareStep({
         <a
           href={toastMessage.includes("history") ? "/history" : undefined}
           className={cn(
-            "fixed left-4 top-4 z-50 flex items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
+            "fixed left-4 right-4 top-4 z-50 flex w-fit items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
             toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
           )}
           style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
