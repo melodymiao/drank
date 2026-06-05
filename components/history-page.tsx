@@ -54,7 +54,7 @@ const CUP_SVGS = [
   ),
   // cup_3 — blue, wide cup with handle
   (
-    <svg viewBox="0 -2 169 117" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 169 113" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M93.1383 6.95878C90.6715 6.75726 80.3823 4.64683 65.9237 2.65385C42.3581 -0.594443 23.7042 9.07027 14.4667 13.4928C8.73337 16.2377 4.61224 19.8674 2.46128 21.6657C1.49679 22.4721 2.19688 24.2309 3.08728 25.2824C6.87974 29.7608 14.6368 30.1318 23.9985 33.9704C38.0972 39.7514 73.4053 32.3144 86.5135 29.2873C94.1904 27.5144 103.789 24.2929 108.302 19.1131C110.652 16.415 109.371 12.2609 108.662 9.65316C106.536 7.63114 103.605 6.56683 100.646 6.1492C99.1574 5.91636 97.6958 5.64104 93.3567 4.74706" stroke="#9BCFEC" strokeWidth="4" strokeLinecap="round"/>
       <path d="M2.62573 27.4131C2.62573 31.6054 3.35006 43.7899 4.62949 51.2928C6.31048 61.1506 8.3369 70.5735 9.64265 78.072C10.7463 84.4098 11.8409 90.5311 12.9091 96.5735C13.1934 98.1813 13.5745 99.8564 14.2201 101.295C14.8658 102.734 15.7897 103.882 17.7327 104.486C26.7309 107.283 33.7299 108.133 40.0675 109.84C47.1425 111.745 71.6497 110.904 89.9646 108.791C99.7126 107.667 104.594 102.365 107.526 99.6895C112.729 94.9413 111.366 85.4076 114.064 76.8953C118.526 62.8198 117.098 54.7088 117.368 32.5598C116.505 26.2242 115.382 23.185 114.526 20.3263C114.155 18.8848 113.911 17.462 113.66 15.3242" stroke="#9BCFEC" strokeWidth="4" strokeLinecap="round"/>
       <path d="M121.65 41.5794C123.464 40.4576 130.53 37.1555 143.588 36.865C147.85 36.7702 150.343 40.5994 152.512 44.1605C156.356 50.4703 154.921 60.7039 151.354 69.5364C146.41 73.7859 141.726 75.0315 136.151 75.5775C131.95 75.7631 124.966 75.7631 115.933 73.4842" stroke="#9BCFEC" strokeWidth="4" strokeLinecap="round"/>
@@ -620,26 +620,29 @@ function DeleteModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
       onClick={handleBackdropClick}
     >
-      <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl bg-card p-6 shadow-lg">
+      <div
+        className="flex w-full max-w-[340px] flex-col gap-4 rounded-md p-4 shadow-xl"
+        style={{ backgroundColor: "oklch(0.958 0.012 85)" }}
+      >
         <div className="flex flex-col gap-1.5">
-          <p className="font-mono text-sm font-medium text-foreground">delete this receipt?</p>
-          <p className="font-sans text-sm text-muted-foreground">this can&apos;t be undone.</p>
+          <p className="font-sans text-sm font-medium text-foreground">Delete this receipt?</p>
+          <p className="font-sans text-sm text-muted-foreground">This can&apos;t be undone.</p>
         </div>
         <div className="flex gap-3">
           <button
-            className="flex-1 rounded-full border border-border py-2.5 font-mono text-sm text-foreground transition-colors hover:bg-border/60"
+            className="flex-1 rounded-full bg-brown py-2.5 font-sans text-sm text-white transition-colors hover:bg-brown/90"
             onClick={onCancel}
           >
-            keep it
+            Keep Receipt
           </button>
           <button
-            className="flex-1 rounded-full bg-pink-dark py-2.5 font-mono text-sm text-white transition-colors hover:bg-pink-dark/90"
+            className="flex-1 rounded-full bg-pink-dark py-2.5 font-sans text-sm text-white transition-colors hover:bg-pink-dark/90"
             onClick={onConfirm}
           >
-            delete
+            Delete
           </button>
         </div>
       </div>
@@ -1150,16 +1153,20 @@ export default function HistoryPage() {
             {/* Empty state */}
             {filteredReceipts.length === 0 && (
               <div className="flex flex-col items-center gap-3 py-16 text-center">
-                <div className="text-4xl">🧋</div>
-                <p className="font-mono text-sm text-muted-foreground">
+                {receipts.length === 0 ? (
+                  <div className="size-12 flex items-center justify-center">
+                    {CUP_SVGS[0]}
+                  </div>
+                ) : null}
+                <p className="text-sm text-muted-foreground">
                   {receipts.length === 0 ? "no drinks ranked yet" : "no matches"}
                 </p>
                 {receipts.length === 0 && (
                   <Link
                     href="/"
-                    className="rounded-full bg-brown px-5 py-2.5 font-mono text-sm uppercase tracking-wider text-white hover:bg-brown/90"
+                    className="rounded-full bg-brown px-5 py-2.5 font-sans text-sm text-white hover:bg-brown/90"
                   >
-                    rank a drink
+                    Rank a Drink
                   </Link>
                 )}
               </div>
