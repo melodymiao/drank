@@ -273,10 +273,10 @@ export default function DrankApp() {
 
       {/* Leave-receipt modal */}
       {leaveTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl bg-card p-6 shadow-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="flex w-full max-w-[340px] flex-col gap-4 rounded-md p-4 shadow-xl" style={{ backgroundColor: "oklch(0.958 0.012 85)" }}>
             <div className="flex flex-col gap-1.5">
-              <p className="font-mono text-sm font-medium text-foreground">
+              <p className="font-sans text-sm font-medium text-foreground">
                 Leave this receipt?
               </p>
               <p className="font-sans text-sm text-muted-foreground">
@@ -286,16 +286,16 @@ export default function DrankApp() {
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                className="flex-1 rounded-full border-border font-mono text-sm"
+                className="flex-1 rounded-full border-border font-sans text-sm"
                 onClick={() => setLeaveTarget(null)}
               >
-                stay
+                Stay
               </Button>
               <Button
-                className="flex-1 rounded-full bg-pink-dark font-mono text-sm text-white hover:bg-pink-dark/90"
+                className="flex-1 rounded-full bg-pink-dark font-sans text-sm text-white hover:bg-pink-dark/90"
                 onClick={handleLeaveConfirm}
               >
-                leave
+                Leave
               </Button>
             </div>
           </div>

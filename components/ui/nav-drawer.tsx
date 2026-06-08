@@ -104,8 +104,8 @@ export function NavDrawer({ open, onClose, onNavigate }: NavDrawerProps) {
       >
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
-          <span className="font-sans text-xs uppercase tracking-widest text-muted-foreground">
-            menu
+          <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            MENU
           </span>
           <button
             onClick={onClose}
@@ -128,15 +128,14 @@ export function NavDrawer({ open, onClose, onNavigate }: NavDrawerProps) {
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3 py-3 transition-colors",
                   isActive
-                    ? "bg-[#E0DE96] text-foreground"
+                    ? "font-medium text-foreground"
                     : disabled
                       ? "cursor-not-allowed text-muted-foreground/40"
                       : "text-foreground hover:bg-border/60"
                 )}
               >
                 <Icon className="size-7 shrink-0" />
-                {/* Changed from font-mono to font-sans */}
-                <span className="flex flex-1 items-center font-sans text-sm tracking-wide">
+                <span className="flex flex-1 items-center font-mono text-sm uppercase tracking-wide">
                   {label}
                 </span>
               </Link>
@@ -166,21 +165,21 @@ export function DesktopNav({ onNavigate }: { onNavigate?: (href: string) => bool
         href="/"
         onClick={(e) => handleClick(e, "/")}
         className={cn(
-          "font-sans text-sm transition-colors hover:opacity-70",
+          "font-mono text-sm uppercase transition-colors hover:opacity-70",
           pathname === "/" ? "font-medium text-foreground" : "text-green-dark"
         )}
       >
-        Rank
+        RANK
       </Link>
       <Link
         href="/history"
         onClick={(e) => handleClick(e, "/history")}
         className={cn(
-          "font-sans text-sm transition-colors hover:opacity-70",
+          "font-mono text-sm uppercase transition-colors hover:opacity-70",
           pathname === "/history" ? "font-medium text-foreground" : "text-green-dark"
         )}
       >
-        History
+        HISTORY
       </Link>
     </nav>
   )

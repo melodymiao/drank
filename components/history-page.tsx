@@ -624,7 +624,7 @@ function DeleteModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
       onClick={handleBackdropClick}
     >
       <div
-        className="flex w-full max-w-[340px] flex-col gap-4 rounded-md p-6 shadow-xl"
+        className="flex w-full max-w-[340px] flex-col gap-4 rounded-md p-4 shadow-xl"
         style={{ backgroundColor: "oklch(0.958 0.012 85)" }}
       >
         <div className="flex flex-col gap-1.5">
@@ -632,21 +632,18 @@ function DeleteModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel:
           <p className="font-sans text-sm text-muted-foreground">This can&apos;t be undone.</p>
         </div>
         <div className="flex gap-3">
-        <Button
-            size="lg"
-            className="flex-1 rounded-full border-2 border-border font-sans text-sm text-foreground hover:brightness-95"
-            style={{ backgroundColor: "oklch(0.958 0.012 85)" }}
+          <button
+            className="flex-1 rounded-full bg-brown py-2.5 font-sans text-sm text-white transition-colors hover:bg-brown/90"
             onClick={onCancel}
           >
             Keep Receipt
-          </Button>
-          <Button
-            className="flex-1 rounded-full py-2.5 font-sans text-sm text-white transition-colors hover:opacity-90"
-            style={{ backgroundColor: "#E85B5B" }}
+          </button>
+          <button
+            className="flex-1 rounded-full bg-pink-dark py-2.5 font-sans text-sm text-white transition-colors hover:bg-pink-dark/90"
             onClick={onConfirm}
           >
             Delete
-          </Button>
+          </button>
         </div>
       </div>
     </div>
@@ -1157,7 +1154,7 @@ export default function HistoryPage() {
             {filteredReceipts.length === 0 && (
               <div className="flex flex-col items-center gap-3 py-16 text-center">
                 {receipts.length === 0 ? (
-                  <div className="size-12 flex items-center justify-center mb-2">
+                  <div className="size-12 flex items-center justify-center">
                     {CUP_SVGS[0]}
                   </div>
                 ) : null}
@@ -1167,7 +1164,7 @@ export default function HistoryPage() {
                 {receipts.length === 0 && (
                   <Link
                     href="/"
-                    className="rounded-full bg-brown px-5 py-2.5 font-sans text-sm font-medium text-white hover:bg-brown/90"
+                    className="rounded-full bg-brown px-5 py-2.5 font-sans text-sm text-white hover:bg-brown/90"
                   >
                     Rank a Drink
                   </Link>
