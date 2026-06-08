@@ -1654,8 +1654,8 @@ function DraggableSticker({
             <div
               onMouseDown={handleRotateStart}
               onTouchStart={handleRotateStart}
-              className="flex items-center justify-center rounded-full bg-pink-dark"
-              style={{ width: 14, height: 14, cursor: "grab", touchAction: "none", zIndex: 30 }}
+              className="flex items-center justify-center rounded-full bg-white"
+              style={{ width: 14, height: 14, border: "2px solid rgba(203,68,106,0.9)", cursor: "grab", touchAction: "none", zIndex: 30 }}
             />
             <div style={{ width: 1, height: 16, backgroundColor: "rgba(203,68,106,0.5)" }} />
           </div>
@@ -1682,12 +1682,11 @@ function DraggableSticker({
             onMouseDown={(e) => { e.stopPropagation(); onDelete() }}
             onTouchStart={(e) => { e.stopPropagation(); onDelete() }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute flex items-center justify-center rounded-full bg-white text-pink-dark"
+            className="absolute flex items-center justify-center rounded-full bg-pink-dark text-white"
             style={{
               width: 16, height: 16,
               top: -(halfH + PAD + 8),
               right: -(halfW + PAD + 8),
-              border: "1.5px solid rgba(203,68,106,0.9)",
               transform: `rotate(${-sticker.rotation}deg)`,
               transformOrigin: "center center",
               zIndex: 30,
