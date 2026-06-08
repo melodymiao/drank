@@ -195,31 +195,6 @@ async function trimAndResizePng(dataUrl: string, maxPx = 500): Promise<string> {
   })
 }
 
-/**
- * Converts a PNG data URL to a JPEG data URL.
- * Fills transparent areas with white so rounded corners become white (not black).
- * Used to compress receipt canvas images before storing in localStorage.
- */
-async function pngToJpeg(dataUrl: string, quality = 0.88): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement("canvas")
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-      const ctx = canvas.getContext("2d")
-      if (!ctx) { resolve(dataUrl); return }
-      // Fill white so transparent areas don't become black
-      ctx.fillStyle = "#FEFCF4"
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(img, 0, 0)
-      resolve(canvas.toDataURL("image/jpeg", quality))
-    }
-    img.onerror = () => resolve(dataUrl)
-    img.src = dataUrl
-  })
-}
-
 // Receipt constants — single source of truth used by both preview and canvas export
 const RECEIPT_BG = "rgba(254,252,244,0.9)"
 const RECEIPT_RADIUS = 8
@@ -262,6 +237,7 @@ export function ShareStep({
   const [hasSaved, setHasSaved] = useState(false)
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [toastVariant, setToastVariant] = useState<"success" | "warning">("success")
 
   // Separate sticker arrays for each canvas — restored from edit if available
   const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>(
@@ -415,7 +391,7 @@ export function ShareStep({
 
       const reader = new FileReader()
       reader.onloadend = async () => {
-        const trimmed = await trimAndResizePng(reader.result as string, 400)
+        const trimmed = await trimAndResizePng(reader.result as string, 500)
         setBgRemovedImage(trimmed)
         setShowDrinkSticker(true)
         setIsBgProcessing(false)
@@ -432,8 +408,9 @@ export function ShareStep({
     setShowSelectionModal(true)
   }, [])
 
-  const showToast = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string, variant: "success" | "warning" = "success") => {
     setToastMessage(msg)
+    setToastVariant(variant)
     setTimeout(() => setToastMessage(null), 3000)
   }, [])
 
@@ -447,20 +424,17 @@ export function ShareStep({
     // Try full save first
     try {
       const priority = showDrinkSticker ? 1 : 0
-      // Convert receipt PNG to JPEG before storing — saves ~60-70% storage space.
-      // The PNG (with transparent rounded corners) is kept in receiptUrl for download.
-      const canvasToStore = receiptUrl ? await pngToJpeg(receiptUrl) : null
       const result = updateReceipt(receiptId, {
         receiptStickers,
         storyStickers,
         showDrinkSticker,
-        savedCanvasDataUrl: canvasToStore,
+        savedCanvasDataUrl: receiptUrl ?? url,
         savedCanvasPriority: priority,
         ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
       })
       setHasSaved(true)
       if (result === "saved-without-drink-sticker") {
-        showToast("Receipt saved without sticker")
+        showToast("Drank storage low — receipt saved without sticker", "warning")
       } else {
         showToast(isFirstSave ? "Saved to drank history" : "Drank history updated")
       }
@@ -478,9 +452,9 @@ export function ShareStep({
           bgRemovedImageDataUrl: null,
         })
         setHasSaved(true)
-        showToast("Receipt saved to drank historywithout image")
+        showToast("Drank storage low — receipt saved without image", "warning")
       } catch {
-        showToast("Drank storage full - unable to save to drank history")
+        showToast("Drank storage full — unable to save", "warning")
       }
     }
 
@@ -526,7 +500,7 @@ export function ShareStep({
       setHasSaved(true)
       showToast("Stored in drank history without photo")
     } catch {
-      showToast("Drank storage full")
+      showToast("Drank storage full", "warning")
     }
   }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, showToast])
 
@@ -750,16 +724,17 @@ export function ShareStep({
       {/* Toast notification */}
       {toastMessage && (
         <a
-          href={toastMessage.includes("history") ? "/history" : undefined}
+          href={toastVariant === "success" && toastMessage.includes("history") ? "/history" : undefined}
           className={cn(
-            "fixed left-4 right-4 top-4 z-50 flex w-fit items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
-            toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
+            "fixed left-4 right-4 top-4 z-50 flex w-fit items-center gap-2 rounded-lg px-4 py-2.5 shadow-lg transition-opacity",
+            toastVariant === "success" ? "bg-green-light" : "bg-border",
+            toastVariant === "success" && toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
           )}
           style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
-          onClick={toastMessage.includes("history") ? undefined : (e) => e.preventDefault()}
+          onClick={toastVariant === "success" && toastMessage.includes("history") ? undefined : (e) => e.preventDefault()}
         >
-          <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
-          {toastMessage.includes("history") && (
+          <p className={cn("font-mono text-xs", toastVariant === "success" ? "text-green-dark" : "text-muted-foreground")}>{toastMessage}</p>
+          {toastVariant === "success" && toastMessage.includes("history") && (
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-green-dark opacity-60">
               <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
