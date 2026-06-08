@@ -195,29 +195,6 @@ async function trimAndResizePng(dataUrl: string, maxPx = 500): Promise<string> {
   })
 }
 
-// Converts a PNG data URL to a flat-background JPEG for compact storage.
-// The rounded receipt corners are transparent in the PNG — we fill behind them
-// with the page background colour so JPEG (which has no alpha channel) looks correct.
-async function toStorageJpeg(pngDataUrl: string, quality = 0.82): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement("canvas")
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-      const ctx = canvas.getContext("2d")
-      if (!ctx) { resolve(pngDataUrl); return }
-      // Page background: oklch(0.958 0.012 85) ≈ #F4F2E8
-      ctx.fillStyle = "#F4F2E8"
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(img, 0, 0)
-      resolve(canvas.toDataURL("image/jpeg", quality))
-    }
-    img.onerror = () => resolve(pngDataUrl)
-    img.src = pngDataUrl
-  })
-}
-
 // Receipt constants — single source of truth used by both preview and canvas export
 const RECEIPT_BG = "rgba(254,252,244,0.9)"
 const RECEIPT_RADIUS = 8
@@ -442,10 +419,6 @@ export function ShareStep({
     const isFirstSave = !hasSaved
     setHasAttemptedSave(true)
 
-    // Convert the receipt PNG to a compact JPEG for storage (transparent corners → page bg fill).
-    // The download still uses the original PNG so rounded corners are preserved in exports.
-    const storageCanvasUrl = receiptUrl ? await toStorageJpeg(receiptUrl) : null
-
     // Try full save first
     try {
       const priority = showDrinkSticker ? 1 : 0
@@ -453,7 +426,7 @@ export function ShareStep({
         receiptStickers,
         storyStickers,
         showDrinkSticker,
-        savedCanvasDataUrl: storageCanvasUrl ?? url,
+        savedCanvasDataUrl: receiptUrl ?? url,
         savedCanvasPriority: priority,
         ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
       })
@@ -1670,27 +1643,7 @@ function DraggableSticker({
             }}
           />
 
-          {/* X (delete) — top-right corner, counter-rotated to stay upright */}
-          <button
-            onMouseDown={(e) => { e.stopPropagation(); onDelete() }}
-            onTouchStart={(e) => { e.stopPropagation(); onDelete() }}
-            onClick={(e) => e.stopPropagation()}
-            className="absolute flex items-center justify-center rounded-full bg-pink-dark text-white"
-            style={{
-              width: 20,
-              height: 20,
-              top: -(halfH + PAD + 10),
-              right: -(halfW + PAD + 10),
-              transform: `rotate(${-sticker.rotation}deg)`,
-              transformOrigin: "center center",
-              zIndex: 30,
-              cursor: "pointer",
-              touchAction: "none",
-              pointerEvents: "auto",
-            }}
-          >
-            <X className="size-3" />
-          </button>
+
 
           {/* Rotation handle — above center */}
           <div
@@ -1724,22 +1677,27 @@ function DraggableSticker({
             }}
           />
 
-          {/* Resize handle — top-right (desktop only) */}
-          <div
-            onMouseDown={handleResizeStart}
-            onTouchStart={handleResizeStart}
+          {/* X (delete) — top-right corner, counter-rotated to stay upright */}
+          <button
+            onMouseDown={(e) => { e.stopPropagation(); onDelete() }}
+            onTouchStart={(e) => { e.stopPropagation(); onDelete() }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute rounded-sm bg-pink-dark block"
+            className="absolute flex items-center justify-center rounded-full bg-white text-pink-dark"
             style={{
-              width: 12, height: 12,
-              top: -(halfH + PAD + 6),
-              right: -(halfW + PAD + 6),
-              cursor: "ne-resize",
-              touchAction: "none",
+              width: 16, height: 16,
+              top: -(halfH + PAD + 8),
+              right: -(halfW + PAD + 8),
+              border: "1.5px solid rgba(203,68,106,0.9)",
+              transform: `rotate(${-sticker.rotation}deg)`,
+              transformOrigin: "center center",
               zIndex: 30,
+              cursor: "pointer",
+              touchAction: "none",
               pointerEvents: "auto",
             }}
-          />
+          >
+            <X className="size-2.5" strokeWidth={2.5} />
+          </button>
 
           {/* Resize handle — bottom-left (desktop only) */}
           <div
