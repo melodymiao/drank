@@ -195,6 +195,29 @@ async function trimAndResizePng(dataUrl: string, maxPx = 500): Promise<string> {
   })
 }
 
+// Converts a PNG data URL to a flat-background JPEG for compact storage.
+// The rounded receipt corners are transparent in the PNG — we fill behind them
+// with the page background colour so JPEG (which has no alpha channel) looks correct.
+async function toStorageJpeg(pngDataUrl: string, quality = 0.82): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement("canvas")
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext("2d")
+      if (!ctx) { resolve(pngDataUrl); return }
+      // Page background: oklch(0.958 0.012 85) ≈ #F4F2E8
+      ctx.fillStyle = "#F4F2E8"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0)
+      resolve(canvas.toDataURL("image/jpeg", quality))
+    }
+    img.onerror = () => resolve(pngDataUrl)
+    img.src = pngDataUrl
+  })
+}
+
 // Receipt constants — single source of truth used by both preview and canvas export
 const RECEIPT_BG = "rgba(254,252,244,0.9)"
 const RECEIPT_RADIUS = 8
@@ -419,6 +442,10 @@ export function ShareStep({
     const isFirstSave = !hasSaved
     setHasAttemptedSave(true)
 
+    // Convert the receipt PNG to a compact JPEG for storage (transparent corners → page bg fill).
+    // The download still uses the original PNG so rounded corners are preserved in exports.
+    const storageCanvasUrl = receiptUrl ? await toStorageJpeg(receiptUrl) : null
+
     // Try full save first
     try {
       const priority = showDrinkSticker ? 1 : 0
@@ -426,7 +453,7 @@ export function ShareStep({
         receiptStickers,
         storyStickers,
         showDrinkSticker,
-        savedCanvasDataUrl: receiptUrl ?? url,
+        savedCanvasDataUrl: storageCanvasUrl ?? url,
         savedCanvasPriority: priority,
         ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
       })
