@@ -733,7 +733,7 @@ export function ShareStep({
           style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
           onClick={toastVariant === "success" && toastMessage.includes("history") ? undefined : (e) => e.preventDefault()}
         >
-          <p className={cn("font-mono text-xs", toastVariant === "success" ? "text-green-dark" : "text-muted-foreground")}>{toastMessage}</p>
+          <p className={cn("font-mono text-xs", toastVariant === "success" ? "text-green-dark" : "text-foreground")}>{toastMessage}</p>
           {toastVariant === "success" && toastMessage.includes("history") && (
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-green-dark opacity-60">
               <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
