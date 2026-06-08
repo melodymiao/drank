@@ -1643,27 +1643,7 @@ function DraggableSticker({
             }}
           />
 
-          {/* X (delete) — top-right corner, counter-rotated to stay upright */}
-          <button
-            onMouseDown={(e) => { e.stopPropagation(); onDelete() }}
-            onTouchStart={(e) => { e.stopPropagation(); onDelete() }}
-            onClick={(e) => e.stopPropagation()}
-            className="absolute flex items-center justify-center rounded-full bg-pink-dark text-white"
-            style={{
-              width: 20,
-              height: 20,
-              top: -(halfH + PAD + 10),
-              right: -(halfW + PAD + 10),
-              transform: `rotate(${-sticker.rotation}deg)`,
-              transformOrigin: "center center",
-              zIndex: 30,
-              cursor: "pointer",
-              touchAction: "none",
-              pointerEvents: "auto",
-            }}
-          >
-            <X className="size-3" />
-          </button>
+
 
           {/* Rotation handle — above center */}
           <div
@@ -1697,22 +1677,26 @@ function DraggableSticker({
             }}
           />
 
-          {/* Resize handle — top-right (desktop only) */}
-          <div
-            onMouseDown={handleResizeStart}
-            onTouchStart={handleResizeStart}
+          {/* X (delete) — top-right corner, counter-rotated to stay upright */}
+          <button
+            onMouseDown={(e) => { e.stopPropagation(); onDelete() }}
+            onTouchStart={(e) => { e.stopPropagation(); onDelete() }}
             onClick={(e) => e.stopPropagation()}
-            className="absolute rounded-sm bg-pink-dark block"
+            className="absolute flex items-center justify-center rounded-full bg-pink-dark text-white"
             style={{
               width: 12, height: 12,
               top: -(halfH + PAD + 6),
               right: -(halfW + PAD + 6),
-              cursor: "ne-resize",
-              touchAction: "none",
+              transform: `rotate(${-sticker.rotation}deg)`,
+              transformOrigin: "center center",
               zIndex: 30,
+              cursor: "pointer",
+              touchAction: "none",
               pointerEvents: "auto",
             }}
-          />
+          >
+            <X className="size-2.5" />
+          </button>
 
           {/* Resize handle — bottom-left (desktop only) */}
           <div
