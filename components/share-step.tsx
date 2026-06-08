@@ -195,6 +195,31 @@ async function trimAndResizePng(dataUrl: string, maxPx = 500): Promise<string> {
   })
 }
 
+/**
+ * Converts a PNG data URL to a JPEG data URL.
+ * Fills transparent areas with white so rounded corners become white (not black).
+ * Used to compress receipt canvas images before storing in localStorage.
+ */
+async function pngToJpeg(dataUrl: string, quality = 0.88): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement("canvas")
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      const ctx = canvas.getContext("2d")
+      if (!ctx) { resolve(dataUrl); return }
+      // Fill white so transparent areas don't become black
+      ctx.fillStyle = "#FEFCF4"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0)
+      resolve(canvas.toDataURL("image/jpeg", quality))
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
+}
+
 // Receipt constants — single source of truth used by both preview and canvas export
 const RECEIPT_BG = "rgba(254,252,244,0.9)"
 const RECEIPT_RADIUS = 8
@@ -390,7 +415,7 @@ export function ShareStep({
 
       const reader = new FileReader()
       reader.onloadend = async () => {
-        const trimmed = await trimAndResizePng(reader.result as string, 500)
+        const trimmed = await trimAndResizePng(reader.result as string, 400)
         setBgRemovedImage(trimmed)
         setShowDrinkSticker(true)
         setIsBgProcessing(false)
@@ -422,11 +447,14 @@ export function ShareStep({
     // Try full save first
     try {
       const priority = showDrinkSticker ? 1 : 0
+      // Convert receipt PNG to JPEG before storing — saves ~60-70% storage space.
+      // The PNG (with transparent rounded corners) is kept in receiptUrl for download.
+      const canvasToStore = receiptUrl ? await pngToJpeg(receiptUrl) : null
       const result = updateReceipt(receiptId, {
         receiptStickers,
         storyStickers,
         showDrinkSticker,
-        savedCanvasDataUrl: receiptUrl ?? url,
+        savedCanvasDataUrl: canvasToStore,
         savedCanvasPriority: priority,
         ...(bgRemovedImage ? { bgRemovedImageDataUrl: bgRemovedImage } : {}),
       })

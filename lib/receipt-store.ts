@@ -9,7 +9,10 @@
  *
  * Photo handling:
  *   - Images are resized to max 800px wide, JPEG quality 0.82 before storing.
- *   - A separate 80px thumbnail is stored for fast list/gallery rendering.
+ *   - A separate 160px thumbnail (2× retina) is stored for fast list rendering.
+ *   - savedCanvasDataUrl is stored as JPEG (not PNG) to save ~60-70% space;
+ *     the PNG with transparent rounded corners is kept in memory for download.
+ *   - bgRemovedImageDataUrl stays PNG (needs alpha transparency for the sticker).
  *   - If localStorage is near capacity a soft warning is logged to the console.
  */
 
@@ -60,7 +63,7 @@ export interface SavedReceipt {
   // ── Media ─────────────────────────────────────────────────────────────
   /** ~800px wide JPEG data URL — null if no photo was uploaded */
   imageDataUrl: string | null
-  /** ~80px wide JPEG data URL — always present when imageDataUrl is set */
+  /** ~160px wide JPEG data URL (2× retina for 80px display) — always present when imageDataUrl is set */
   thumbnailDataUrl: string | null
   /**
    * Background-removed drink PNG data URL — set when the user enables the
@@ -76,8 +79,8 @@ export interface SavedReceipt {
   /** Whether the drink sticker was enabled at time of last save */
   showDrinkSticker: boolean
   /**
-   * The "best" saved canvas PNG for this receipt — used in the history detail
-   * view instead of re-rendering the DOM receipt. Priority (highest wins):
+   * The "best" saved canvas for this receipt — stored as JPEG to save space.
+   * Priority (highest wins):
    *   2 — story canvas with drink sticker
    *   1 — story canvas without drink sticker
    *   0 — receipt canvas only
@@ -194,7 +197,7 @@ export async function saveReceipt(
 ): Promise<string> {
   const [imageDataUrl, thumbnailDataUrl] = await Promise.all([
     rawImageDataUrl ? resizeImage(rawImageDataUrl, 800, 0.82) : Promise.resolve(null),
-    rawImageDataUrl ? resizeImage(rawImageDataUrl, 400, 0.82) : Promise.resolve(null),
+    rawImageDataUrl ? resizeImage(rawImageDataUrl, 160, 0.82) : Promise.resolve(null),
   ])
 
   const now = new Date().toISOString()
