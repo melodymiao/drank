@@ -316,15 +316,15 @@ function MobileAllFilterChip({
         ref={buttonRef}
         onClick={() => { setIsOpen((o) => !o); setSubMenu(null) }}
         className={cn(
-          "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-3 py-1.5 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
+          "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-4 py-2 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
           active || isOpen
-            ? "border-green-light bg-green-light font-medium text-foreground"
-            : "border-green-light text-green-dark"
+            ? "border-brown bg-brown font-medium text-card"
+            : "border-border text-foreground"
         )}
       >
         All
         {activeFilterCount > 0 && (
-          <span className="flex size-4 items-center justify-center rounded-full bg-foreground/15 text-[9px]">
+          <span className="flex size-4 items-center justify-center rounded-full bg-current/15 text-[9px]">
             {activeFilterCount}
           </span>
         )}
@@ -372,7 +372,7 @@ function MobileAllFilterChip({
                 <div className="flex gap-3">
                   <button
                     onClick={() => { cafeOptions.forEach(o => onToggleCafe(o.name)) }}
-                    className="font-sans text-[11px] text-green-dark underline"
+                    className="font-sans text-[11px] text-brown underline"
                   >
                     All
                   </button>
@@ -392,7 +392,7 @@ function MobileAllFilterChip({
                     onClick={() => onToggleCafe(name)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-lg px-2 py-3 font-sans text-xs transition-colors",
-                      cafeFilter.has(name) ? "bg-green-light text-foreground" : "text-foreground hover:bg-green-light/50"
+                      cafeFilter.has(name) ? "bg-brown/10 text-brown" : "text-foreground hover:bg-brown/10"
                     )}
                   >
                     <span className={cn("flex size-4 shrink-0 items-center justify-center rounded-none border", cafeFilter.has(name) ? "border-foreground bg-foreground" : "border-border bg-card")}>
@@ -417,7 +417,7 @@ function MobileAllFilterChip({
                 <div className="flex gap-3">
                   <button
                     onClick={() => { locationOptions.forEach(o => onToggleLocation(o.name)) }}
-                    className="font-sans text-[11px] text-green-dark underline"
+                    className="font-sans text-[11px] text-brown underline"
                   >
                     All
                   </button>
@@ -437,7 +437,7 @@ function MobileAllFilterChip({
                     onClick={() => onToggleLocation(name)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-lg px-2 py-3 font-sans text-xs transition-colors",
-                      locationFilter.has(name) ? "bg-green-light text-foreground" : "text-foreground hover:bg-green-light/50"
+                      locationFilter.has(name) ? "bg-brown/10 text-brown" : "text-foreground hover:bg-brown/10"
                     )}
                   >
                     <span className={cn("flex size-4 shrink-0 items-center justify-center rounded-none border", locationFilter.has(name) ? "border-foreground bg-foreground" : "border-border bg-card")}>
@@ -532,15 +532,15 @@ function FilterChip({
         ref={buttonRef}
         onClick={onClick}
         className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-3 py-1.5 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
+            "flex shrink-0 items-center gap-1.5 rounded-md border-2 px-4 py-2 font-mono text-xs transition-all hover:scale-[1.02] active:scale-[0.98]",
             active || isOpen
-            ? "border-green-light bg-green-light font-medium text-foreground"
-            : "border-green-light text-green-dark"
+            ? "border-brown bg-brown font-medium text-card"
+            : "border-border text-foreground"
         )}
         >
         {label}
         {count !== undefined && count > 0 && (
-          <span className="flex size-4 items-center justify-center rounded-full bg-foreground/15 text-[9px]">
+          <span className="flex size-4 items-center justify-center rounded-full bg-current/15 text-[9px]">
             {count}
           </span>
         )}
@@ -560,7 +560,7 @@ function FilterChip({
           <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
             <span className="font-mono text-xs font-medium text-foreground">{label}</span>
             <div className="flex gap-3">
-              <button onClick={onSelectAll} className="font-sans text-[11px] text-green-dark underline">
+              <button onClick={onSelectAll} className="font-sans text-[11px] text-brown underline">
                 All
               </button>
               <button onClick={onClear} className="font-sans text-[11px] text-muted-foreground underline">
@@ -581,8 +581,8 @@ function FilterChip({
                 className={cn(
                   "flex w-full items-center gap-2 rounded-lg px-2 py-3 font-sans text-xs transition-colors",
                   selected.has(name)
-                    ? "bg-green-light text-foreground"
-                    : "text-foreground hover:bg-green-light/50"
+                    ? "bg-brown/10 text-brown"
+                    : "text-foreground hover:bg-brown/10"
                 )}
               >
                 {/* Checkbox */}
@@ -1094,10 +1094,10 @@ export default function HistoryPage() {
     />
     <div className="ml-auto flex items-center gap-2">
       <div className="flex rounded-xl border-2 border-border bg-transparent p-1">
-        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>Ranking</button>
-        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>Latest</button>
+        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-brown text-card font-medium" : "text-muted-foreground hover:text-foreground")}>Ranking</button>
+        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-brown text-card font-medium" : "text-muted-foreground hover:text-foreground")}>Latest</button>
       </div>
-      <button onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} className="flex items-center justify-center p-1 text-green-dark transition-opacity hover:opacity-70" aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}>
+      <button onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} className="flex items-center justify-center p-1 text-brown transition-opacity hover:opacity-70" aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}>
         <ArrowUpDown className="size-5" />
       </button>
     </div>
@@ -1140,10 +1140,10 @@ export default function HistoryPage() {
     </div>
     <div className="flex items-center gap-3">
       <div className="flex rounded-xl border-2 border-border bg-transparent p-1">
-        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>Ranking</button>
-        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-green-light font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}>Latest</button>
+        <button onClick={() => setSortBy("rating")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "rating" ? "bg-brown text-card font-medium" : "text-muted-foreground hover:text-foreground")}>Ranking</button>
+        <button onClick={() => setSortBy("latest")} className={cn("rounded-md px-3 py-1.5 font-mono text-xs transition-colors", sortBy === "latest" ? "bg-brown text-card font-medium" : "text-muted-foreground hover:text-foreground")}>Latest</button>
       </div>
-      <button onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} className="flex items-center justify-center p-1 text-green-dark transition-opacity hover:opacity-70" aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}>
+      <button onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")} className="flex items-center justify-center p-1 text-brown transition-opacity hover:opacity-70" aria-label={sortDir === "desc" ? "Sort ascending" : "Sort descending"}>
         <ArrowUpDown className="size-5" />
       </button>
     </div>
