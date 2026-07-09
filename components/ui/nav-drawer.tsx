@@ -128,7 +128,7 @@ export function NavDrawer({ open, onClose, onNavigate }: NavDrawerProps) {
                   "flex items-center gap-3 rounded-xl px-3 py-3 transition-colors",
                   disabled
                     ? "cursor-not-allowed text-muted-foreground/40"
-                    : "text-brown hover:bg-border/40 hover:text-blue-500"
+                    : "text-brown hover:bg-border/40 hover:text-green-dark"
                 )}
               >
                 <Icon className="size-7 shrink-0" />
@@ -161,14 +161,14 @@ export function DesktopNav({ onNavigate }: { onNavigate?: (href: string) => bool
       <Link
         href="/"
         onClick={(e) => handleClick(e, "/")}
-        className="font-mono text-sm uppercase text-brown transition-colors hover:text-blue-500"
+        className="font-mono text-sm uppercase text-brown transition-colors hover:text-green-dark"
       >
         RANK
       </Link>
       <Link
         href="/history"
         onClick={(e) => handleClick(e, "/history")}
-        className="font-mono text-sm uppercase text-brown transition-colors hover:text-blue-500"
+        className="font-mono text-sm uppercase text-brown transition-colors hover:text-green-dark"
       >
         HISTORY
       </Link>
