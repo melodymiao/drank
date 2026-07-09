@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { Bree_Serif, Permanent_Marker, Domine } from "next/font/google"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -18,6 +19,10 @@ import {
 } from "@/lib/receipt-store"
 import { NavDrawer, HamburgerButton, DesktopNav } from "@/components/ui/nav-drawer"
 import { Button } from "@/components/ui/button"
+
+const _breeSerif = Bree_Serif({ variable: "--font-bree-serif", subsets: ["latin"], weight: "400" })
+const _permanentMarker = Permanent_Marker({ variable: "--font-permanent-marker", subsets: ["latin"], weight: "400" })
+const _domine = Domine({ variable: "--font-domine", subsets: ["latin"], weight: "700" })
 
 /* ─────────────────────────────────────────────────────────────
    Helpers
@@ -104,96 +109,106 @@ function useCountUp(target: number | null, duration = 600): number | null {
    a <g transform="scale(xScale, 1)"> so only x-coordinates stretch while
    the stroke width stays constant.
 ─────────────────────────────────────────────────────────────── */
-const SQUIGGLY_CONFIGS = {
-  pink: {
-    nativeW: 118,
-    nativeH: 71,
-    stroke: "#F884A3",
-    path: "M2.47933 5.6639C2.47933 7.24963 2.31723 11.3081 2.08988 13.3041C1.72222 16.5319 2.53068 19.0074 2.79093 21.0128C3.01264 22.7212 3.28411 24.3883 2.99406 26.2575C2.72636 27.9827 2.3425 30.3012 2.29967 35.9337C2.2788 38.6778 3.41395 40.8321 3.56884 46.521C3.64499 49.3176 3.12263 50.9451 3.06598 56.0735C3.03442 58.9314 3.80052 60.7246 4.3121 62.6455C4.45952 63.199 4.43569 63.8846 4.6088 64.3568C4.7819 64.8291 5.09029 65.0804 5.45867 65.0322C7.27453 64.7947 9.11782 63.9126 10.9097 64.3539C13.4318 64.9751 17.4502 64.7816 19.3589 65.1004C21.6197 65.478 24.643 65.8397 31.3237 65.9148C33.9149 65.944 35.7024 65.4233 39.9513 65.1928C43.8636 64.9805 50.1538 64.9199 53.1935 65.2557C54.9564 65.4505 56.703 66.3457 58.6851 66.9835C61.4079 67.8597 63.1981 68.0376 67.5073 68.087C69.7203 68.1124 71.3493 67.5096 73.6413 66.9669C76.4115 66.3109 78.1804 66.2203 79.8632 65.9664C82.0494 65.6366 84.1225 65.202 86.964 64.9904C94.1682 64.4539 96.5218 65.2289 98.8548 65.4263C101.218 65.6263 107.971 65.9763 112.217 65.569C113.947 65.4032 115.083 64.5774 115.496 64.0697C115.906 63.5653 114.47 62.5007 113.287 61.4292C111.386 59.7075 113.932 55.7562 114.419 52.1645C115.842 41.6613 113.978 39.9354 113.439 37.4049C112.053 30.8985 113.747 28.7685 114.338 24.9239C114.825 21.7601 114.396 18.195 113.496 16.3071C112.502 14.2223 112.768 12.2118 112.476 6.82841C112.413 5.66116 111.844 5.29581 111.438 5.06186C106.796 2.38968 96.2738 4.39894 93.1659 3.78667C90.9305 3.3463 89.1865 3.06706 87.2592 2.60376C85.2553 2.12206 82.1911 1.84618 79.5907 2.09084C76.1728 2.41243 71.1132 2.72775 67.5334 3.41786C61.5139 4.57829 54.0006 4.05203 50.0217 3.94994C47.4742 3.88457 44.9604 3.49734 41.9801 2.90873C37.8402 2.09108 31.4957 2.72781 25.9178 2.66256C22.479 2.62233 20.4869 3.4594 17.718 3.83235C15.8216 4.08779 14.2967 4.73113 12.5654 5.37049C9.7717 5.39846 8.13184 5.24326 6.81275 5.22029C6.1079 5.19936 5.33105 5.1596 3.65483 4.73246",
-  },
-  green: {
-    nativeW: 115,
-    nativeH: 68,
-    stroke: "#E0DE96",
-    path: "M2.00049 4.87294C2.18055 5.3454 2.69684 7.02558 2.92115 9.13777C3.12701 11.0763 2.72088 16.0851 2.92052 20.0785C3.03727 22.4141 3.48668 23.9363 3.62822 33.7436C3.69948 38.6815 4.06737 40.6638 4.27907 44.0179C4.62091 49.4337 4.40017 55.066 4.32196 58.3129C4.28493 59.8502 4.17194 61.5087 4.42649 63.4447C4.63997 65.0683 8.06678 63.5633 12.3058 64.3395C14.461 64.7341 16.4396 64.3621 19.7569 64.0249C21.6032 63.8372 28.2361 63.4095 33.4121 63.7519C35.9198 63.9178 37.4361 64.8247 43.1616 64.5158C51.6683 64.0568 57.6611 64.3698 58.6603 64.2679C59.5797 64.1741 60.3497 64.395 62.514 64.6197C72.9256 65.7004 77.2449 64.7491 78.6385 65.0908C79.985 65.421 81.8755 64.8365 83.4489 64.4269C84.8443 64.0636 86.467 63.15 89.3649 62.9692C91.0625 62.8633 92.7224 63.3838 94.4702 63.5447C96.4909 63.7307 98.5096 63.9856 99.8655 63.4643C102.313 62.5233 106.348 63.1929 107.228 62.9918C109.364 62.5036 107.515 57.3139 108.011 55.8459C108.904 53.2025 110.476 48.439 110.909 46.4861C111.264 44.88 111.772 42.9148 112.195 40.8166C112.929 37.1718 112.622 31.9456 112.472 31.1475C112.167 29.5314 111.246 27.6468 110.302 22.3375C109.811 19.5781 108.828 18.2426 107.96 16.9495C106.412 14.6421 108.393 9.21664 108.618 7.47247C108.664 7.12081 108.796 6.79863 108.846 6.4648C108.895 6.13097 108.895 5.80234 108.506 5.70072C103.484 4.38862 96.0769 5.71028 93.968 5.51741C92.4934 5.38255 91.2255 4.34806 89.0216 3.96494C83.9082 3.07603 81.6575 4.45463 79.7591 4.96105C77.9243 5.45048 74.2485 6.18643 72.2048 5.69872C70.8374 5.37237 69.6162 4.93277 68.7452 3.71453C67.7944 2.38482 63.4568 3.72647 60.8306 4.17444C58.9526 4.49479 56.7369 4.59689 54.9245 4.74756C53.233 4.88817 51.6311 5.00671 49.9985 5.64321C47.3854 6.66202 42.7112 5.52566 39.8611 5.22848C37.718 5.00501 33.7131 3.92456 30.8763 3.61147C27.617 3.25175 25.2994 3.08234 23.4168 2.86407C21.8775 2.6856 20.2636 2.38999 17.5872 2.19167C9.39227 1.58441 7.54697 2.57853 5.46974 2.98156C5.01614 3.06595 4.66112 3.12682 4.28518 3.22225C3.90924 3.31767 3.52314 3.4458 3.03762 4.00093",
-  },
-  blue: {
-    nativeW: 116,
-    nativeH: 71,
-    stroke: "#9BCFEC",
-    path: "M3.13988 7.249C3.13988 7.74643 2.98772 15.5082 3.27234 21.9862C3.48357 26.794 4.30349 28.3571 4.41203 30.6739C4.63791 35.4956 4.19818 40.9842 3.88746 44.494C3.73889 46.1722 2.72157 47.622 2.12276 49.2907C1.52902 50.9453 3.25258 52.9105 3.64103 54.7783C4.08959 56.935 3.96115 58.8577 4.29176 60.7203C4.66024 62.7963 5.2648 63.906 5.62954 64.5642C6.4321 66.0123 16.8591 64.9005 22.2083 65.7306C23.8182 65.9804 25.283 66.6664 29.5648 66.6325C31.8424 66.6145 38.6434 66.002 43.04 66.4106C44.9932 66.5922 47.3637 66.5624 51.6222 66.6299C53.7545 66.6636 55.4677 67.4743 57.1351 67.8164C58.9421 68.1872 61.3818 68.4717 63.0767 67.7423C65.0489 66.8936 67.8106 66.8048 69.8807 66.6697C72.5537 66.4952 76.424 66.7179 85.6589 67.1766C90.1374 67.399 92.6053 67.6732 94.9206 67.3205C97.1446 66.9818 99.059 66.611 100.646 66.1491C102.704 65.5497 105.805 65.4586 110.02 65.0403C111.945 64.8493 111.374 60.9262 111.75 58.7828C112.254 55.91 113.442 53.018 113.455 50.786C113.481 46.1176 112.878 43.4326 112.81 36.4064C112.785 33.8055 112.011 32.3013 110.283 29.5362C109.549 28.3622 109.348 27.3071 109.121 26.4465C108.866 25.4756 109.515 23.9919 110.068 22.0784C110.671 19.9931 110.84 13.5143 110.696 5.42495C110.647 2.64912 110.13 2.59307 109.343 2.56151C105.781 2.41863 104.074 2.79848 102.157 3.03256C100.334 3.25515 98.637 3.56714 96.3745 4.05811C94.4236 4.48146 91.2787 4.63108 88.9835 4.36201C87.4666 4.18417 85.3957 4.7889 79.4904 4.85348C76.693 4.88407 72.1424 4.47357 69.0671 4.1353C67.0127 3.90933 64.9631 2.97468 61.901 2.86691C59.5953 2.78575 57.3474 3.7348 55.7183 4.08042C53.7117 4.50612 51.112 4.6174 48.407 4.56089C46.6138 4.52343 44.9442 2.71756 42.8551 2.17613C40.32 1.5191 37.5657 2.89784 34.6311 3.09101C31.1701 3.31884 24.8813 3.40243 22.0005 3.70925C19.0034 4.02846 15.113 4.07479 10.8149 4.21085C9.04999 4.41227 7.9295 4.68134 6.5755 4.89495C5.62128 4.97786 4.12475 5.00901 2.58288 5.0411",
-  },
-} as const
+/* ─────────────────────────────────────────────────────────────
+   Stat stickers — hand-placed, die-cut style stats
+─────────────────────────────────────────────────────────────── */
 
-function SquigglyStatCard({
-  label,
-  value,
-  color,
-  visible,
-  delay,
-}: {
-  label: string
-  value: string
-  color: "pink" | "green" | "blue"
-  visible: boolean
-  delay: number
-}) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [containerW, setContainerW] = useState<number | null>(null)
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const ro = new ResizeObserver((entries) => {
-      setContainerW(entries[0].contentRect.width)
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  const { nativeW, nativeH, stroke, path } = SQUIGGLY_CONFIGS[color]
-  // Scale x-axis so the path fills the container width, y stays native
-  const xScale = containerW != null ? containerW / nativeW : 1
-
+function CafesRankedSticker({ value, visible, delay }: { value: string; visible: boolean; delay: number }) {
   return (
     <div
-      ref={containerRef}
       className="relative min-w-0 flex-1"
       style={{
         opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(8px)",
+        transform: visible ? "rotate(5deg) translateY(0)" : "rotate(5deg) translateY(8px)",
         transition: `opacity 0.35s ease ${delay}ms, transform 0.35s ease ${delay}ms`,
       }}
     >
-      {/* SVG — fixed height, full width; only path x-axis scales */}
-      <svg
-        width={containerW ?? nativeW}
-        height={nativeH}
-        viewBox={`0 0 ${containerW ?? nativeW} ${nativeH}`}
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        className="absolute inset-0 left-0 top-0 w-full"
-        style={{ height: nativeH }}
-      >
-        <g transform={`scale(${xScale}, 1)`}>
-          <path
-            d={path}
-            stroke={stroke}
-            strokeWidth="3"
-            strokeLinecap="round"
-            fill="none"
-            vectorEffect="non-scaling-stroke"
-          />
-        </g>
+      <svg viewBox="0 0 260 130" className="h-auto w-full" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <path id="cafes-ranked-curve" d="M 20 70 Q 130 30 240 70" fill="none" />
+        </defs>
+        <text
+          fontFamily="var(--font-domine), serif"
+          fontWeight={700}
+          fontSize="30"
+          letterSpacing="-1"
+          stroke="#D9D88A"
+          fill="#D9D88A"
+          strokeWidth="20"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          style={{ paintOrder: "stroke" }}
+        >
+          <textPath href="#cafes-ranked-curve" startOffset="50%" textAnchor="middle">
+            <tspan fontFamily="var(--font-permanent-marker), cursive">{value}</tspan> cafes ranked
+          </textPath>
+        </text>
+        <text
+          fontFamily="var(--font-domine), serif"
+          fontWeight={700}
+          fontSize="30"
+          letterSpacing="-1"
+          fill="#481D0F"
+        >
+          <textPath href="#cafes-ranked-curve" startOffset="50%" textAnchor="middle">
+            <tspan fontFamily="var(--font-permanent-marker), cursive">{value}</tspan> cafes ranked
+          </textPath>
+        </text>
       </svg>
-      {/* Content — padded to sit inside the squiggly border */}
-      <div
-        className="relative flex flex-col items-center justify-center"
-        style={{ height: nativeH }}
-      >
-        <span className="font-mono text-lg font-medium leading-tight text-[#473C23]">{value}</span>
-        <span className="font-mono text-[10px] uppercase tracking-wider text-[#473C23]/70">{label}</span>
-      </div>
+    </div>
+  )
+}
+
+function AvgScoreSticker({ value, visible, delay }: { value: string; visible: boolean; delay: number }) {
+  return (
+    <div
+      className="relative flex min-w-0 flex-1 items-center justify-center"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "rotate(-3deg) translateY(0)" : "rotate(-3deg) translateY(8px)",
+        transition: `opacity 0.35s ease ${delay}ms, transform 0.35s ease ${delay}ms`,
+      }}
+    >
+      <svg viewBox="0 0 220 220" className="h-auto w-full max-w-[150px]" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <path id="avg-score-top" d="M 28,110 A 82,82 0 0 1 192,110" fill="none" />
+          <path id="avg-score-bottom" d="M 192,110 A 82,82 0 0 1 28,110" fill="none" />
+        </defs>
+        <circle cx="110" cy="110" r="110" fill="#CB446A" />
+        <text fontFamily="var(--font-ibm-plex-mono), monospace" fontWeight={500} fontSize="16" letterSpacing="1" fill="#481D0F">
+          <textPath href="#avg-score-top" startOffset="50%" textAnchor="middle">avg score &#183; avg score &#183; avg score &#183;</textPath>
+        </text>
+        <text fontFamily="var(--font-ibm-plex-mono), monospace" fontWeight={500} fontSize="16" letterSpacing="1" fill="#481D0F">
+          <textPath href="#avg-score-bottom" startOffset="50%" textAnchor="middle">avg score &#183; avg score &#183; avg score &#183;</textPath>
+        </text>
+        <text x="108" y="128" textAnchor="middle" fontFamily="var(--font-permanent-marker), cursive" fontSize="68" fill="#FEFCF4">
+          <tspan rotate="-6,3,-4">{value}</tspan>
+        </text>
+      </svg>
+    </div>
+  )
+}
+
+function CitiesVisitedSticker({ value, visible, delay }: { value: string; visible: boolean; delay: number }) {
+  return (
+    <div
+      className="relative flex min-w-0 flex-1 items-center justify-center"
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "rotate(-5deg) translateY(0)" : "rotate(-5deg) translateY(8px)",
+        transition: `opacity 0.35s ease ${delay}ms, transform 0.35s ease ${delay}ms`,
+      }}
+    >
+      <svg viewBox="0 0 220 220" className="h-auto w-full max-w-[150px]" xmlns="http://www.w3.org/2000/svg">
+        {/* outline pass — dotless "i" swapped for "l" so the halo fuses into one shape with no notch */}
+        <text x="110" y="70" textAnchor="middle" fontFamily="var(--font-permanent-marker), cursive" fontSize="56" letterSpacing="-1" stroke="#F5A85C" fill="#F5A85C" strokeWidth="30" strokeLinejoin="round" strokeLinecap="round" style={{ paintOrder: "stroke" }}>{value}</text>
+        <text x="110" y="114" textAnchor="middle" fontFamily="var(--font-bree-serif), serif" fontSize="34" letterSpacing="-2" stroke="#F5A85C" fill="#F5A85C" strokeWidth="30" strokeLinejoin="round" strokeLinecap="round" style={{ paintOrder: "stroke" }}>cltles</text>
+        <text x="110" y="152" textAnchor="middle" fontFamily="var(--font-bree-serif), serif" fontSize="34" letterSpacing="-2" stroke="#F5A85C" fill="#F5A85C" strokeWidth="30" strokeLinejoin="round" strokeLinecap="round" style={{ paintOrder: "stroke" }}>vlslted</text>
+        {/* fill pass — real spelling */}
+        <text x="110" y="70" textAnchor="middle" fontFamily="var(--font-permanent-marker), cursive" fontSize="56" letterSpacing="-1" fill="#481D0F">{value}</text>
+        <text x="110" y="114" textAnchor="middle" fontFamily="var(--font-bree-serif), serif" fontSize="34" letterSpacing="-2" fill="#481D0F">cities</text>
+        <text x="110" y="152" textAnchor="middle" fontFamily="var(--font-bree-serif), serif" fontSize="34" letterSpacing="-2" fill="#481D0F">visited</text>
+      </svg>
     </div>
   )
 }
@@ -214,28 +229,22 @@ function StatsBar() {
   const animCities = useCountUp(stats.uniqueCities, 650)
 
   return (
-    <div className="flex gap-3">
-      {/* cafés — pink */}
-      <SquigglyStatCard
-        label="cafés"
-        value={animCafes !== null ? String(Math.round(animCafes)) : "0"}
-        color="pink"
+    <div className={`flex items-center gap-3 ${_breeSerif.variable} ${_permanentMarker.variable} ${_domine.variable}`}>
+      {/* avg score — circle badge, now leftmost */}
+      <AvgScoreSticker
+        value={animAvg !== null ? animAvg.toFixed(1) : "—"}
         visible={visible}
         delay={0}
       />
-      {/* avg score — green (middle, most important) */}
-      <SquigglyStatCard
-        label="avg score"
-        value={animAvg !== null ? animAvg.toFixed(1) : "—"}
-        color="green"
+      {/* cafés ranked — curved die-cut, now in the middle */}
+      <CafesRankedSticker
+        value={animCafes !== null ? String(Math.round(animCafes)) : "0"}
         visible={visible}
         delay={60}
       />
-      {/* cities — blue */}
-      <SquigglyStatCard
-        label="cities"
+      {/* cities visited — stacked die-cut */}
+      <CitiesVisitedSticker
         value={animCities !== null ? String(Math.round(animCities)) : "0"}
-        color="blue"
         visible={visible}
         delay={120}
       />
