@@ -506,7 +506,7 @@ export function DecorateStep({
             <div className="h-[40px] shrink-0 flex items-center">
               <button
                 onClick={onBack}
-                className="flex items-center gap-1.5 font-sans text-sm text-green-dark transition-colors hover:opacity-70"
+                className="flex items-center gap-1.5 font-sans text-sm text-brown transition-colors hover:text-green-dark"
               >
                 <ArrowLeft className="size-4" />
                 Back
@@ -537,7 +537,7 @@ export function DecorateStep({
             {/* Mobile back button */}
             <button
               onClick={onBack}
-              className="mb-1 flex shrink-0 items-center gap-1.5 self-start py-2 font-sans text-sm text-green-dark transition-colors hover:opacity-70 md:hidden"
+              className="mb-1 flex shrink-0 items-center gap-1.5 self-start py-2 font-sans text-sm text-brown transition-colors hover:text-green-dark md:hidden"
             >
               <ArrowLeft className="size-4" />
               Back

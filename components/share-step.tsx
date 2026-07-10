@@ -25,11 +25,13 @@ const BG_REMOVAL_MESSAGES = [
   "doing the hard work so you don't have to",
 ]
 
-const PHOTO_CONVERTING_MESSAGES = [
-  "converting your photo...",
-  "reading the pixels...",
-  "wrangling the file...",
-  "almost ready...",
+const PHOTO_UPLOAD_MESSAGES = [
+  "your story is being made",
+  "cute picture — make a sticker with it!",
+  "looks like a yummy drink",
+  "pics or it didn't happen",
+  "loading your photo...",
+  "getting your drink ready...",
 ]
 
 function RotatingMessage({ messages, className }: { messages: string[]; className?: string }) {
@@ -221,7 +223,7 @@ export function ShareStep({
   const [storyUrl, setStoryUrl] = useState<string | null>(null)
   const [receiptCaptureUrl, setReceiptCaptureUrl] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [isPhotoConverting, setIsPhotoConverting] = useState(false)
+  const [isPhotoLoading, setIsPhotoLoading] = useState(false)
 
   // Drink sticker state
   const [showDrinkSticker, setShowDrinkSticker] = useState(initialShowDrinkSticker ?? false)
@@ -237,6 +239,7 @@ export function ShareStep({
   const [hasSaved, setHasSaved] = useState(false)
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [toastVariant, setToastVariant] = useState<"success" | "warning">("success")
 
   // Separate sticker arrays for each canvas — restored from edit if available
   const [receiptStickers, setReceiptStickers] = useState<PlacedSticker[]>(
@@ -407,8 +410,9 @@ export function ShareStep({
     setShowSelectionModal(true)
   }, [])
 
-  const showToast = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string, variant: "success" | "warning" = "success") => {
     setToastMessage(msg)
+    setToastVariant(variant)
     setTimeout(() => setToastMessage(null), 3000)
   }, [])
 
@@ -432,7 +436,7 @@ export function ShareStep({
       })
       setHasSaved(true)
       if (result === "saved-without-drink-sticker") {
-        showToast("Receipt saved without sticker")
+        showToast("Drank storage low — receipt saved without sticker", "warning")
       } else {
         showToast(isFirstSave ? "Saved to drank history" : "Drank history updated")
       }
@@ -450,9 +454,9 @@ export function ShareStep({
           bgRemovedImageDataUrl: null,
         })
         setHasSaved(true)
-        showToast("Receipt saved to drank historywithout image")
+        showToast("Drank storage low — receipt saved without image", "warning")
       } catch {
-        showToast("Drank storage full - unable to save to drank history")
+        showToast("Drank storage full — unable to save", "warning")
       }
     }
 
@@ -498,7 +502,7 @@ export function ShareStep({
       setHasSaved(true)
       showToast("Stored in drank history without photo")
     } catch {
-      showToast("Drank storage full")
+      showToast("Drank storage full", "warning")
     }
   }, [receiptId, receiptStickers, storyStickers, showDrinkSticker, showToast])
 
@@ -515,11 +519,11 @@ export function ShareStep({
         file.type.toLowerCase() === "image/heif" ||
         /\.(heic|heif)$/i.test(file.name)
 
-      if (isHeic) {
-        setIsPhotoConverting(true)
-        try {
+      setIsPhotoLoading(true)
+      try {
+        if (isHeic) {
           const heic2any = (await import("heic2any")).default
-          const blob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 })
+          const blob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.75 })
           const jpegBlob = Array.isArray(blob) ? blob[0] : blob
           dataUrl = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader()
@@ -527,18 +531,18 @@ export function ShareStep({
             reader.onerror = () => reject(new Error("FileReader failed"))
             reader.readAsDataURL(jpegBlob)
           })
-        } catch {
-          setIsPhotoConverting(false)
-          return
+        } else {
+          dataUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result as string)
+            reader.readAsDataURL(file)
+          })
         }
-        setIsPhotoConverting(false)
-      } else {
-        dataUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader()
-          reader.onloadend = () => resolve(reader.result as string)
-          reader.readAsDataURL(file)
-        })
+      } catch {
+        setIsPhotoLoading(false)
+        return
       }
+      setIsPhotoLoading(false)
 
       setBgRemovedImage(null)
       setSelectionRect(null)
@@ -607,15 +611,15 @@ export function ShareStep({
       {!hasImage ? (
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1.5 font-sans text-sm text-green-dark transition-colors hover:opacity-70"
+          className="flex items-center gap-1.5 font-sans text-sm text-brown transition-colors hover:text-green-dark"
         >
           Upload Photo For Sticker &amp; Story
           <Upload className="size-4" />
         </button>
-      ) : isPhotoConverting ? (
+      ) : isPhotoLoading ? (
         <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
           <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-          <RotatingMessage messages={PHOTO_CONVERTING_MESSAGES} className="font-sans text-sm text-muted-foreground" />
+          <RotatingMessage messages={PHOTO_UPLOAD_MESSAGES} className="font-sans text-sm text-muted-foreground" />
         </span>
       ) : isBgProcessing ? (
         <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
@@ -632,7 +636,7 @@ export function ShareStep({
               onClick={handleToggleSticker}
               className={cn(
                 "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors",
-                showDrinkSticker ? "bg-pink-dark" : "bg-pink-dark/20"
+                showDrinkSticker ? "bg-brown" : "bg-brown/20"
               )}
             >
               <span
@@ -642,14 +646,14 @@ export function ShareStep({
                 )}
               />
             </button>
-            <span className="flex items-center gap-1 font-sans text-sm text-pink-dark">
+            <span className="flex items-center gap-1 font-sans text-sm text-brown">
               Drink Sticker
               <CupSoda className="size-3.5" />
             </span>
             {showDrinkSticker && (
               <button
                 onClick={handleReselect}
-                className="font-sans text-xs text-pink-dark underline transition-colors hover:opacity-70"
+                className="font-sans text-xs text-brown underline transition-colors hover:text-green-dark"
               >
                 Re-select
               </button>
@@ -658,7 +662,7 @@ export function ShareStep({
           {/* Right: upload again */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 font-sans text-sm text-green-dark transition-colors hover:opacity-70"
+            className="flex items-center gap-1.5 font-sans text-sm text-brown transition-colors hover:text-green-dark"
           >
             Upload Again
             <Upload className="size-4" />
@@ -722,16 +726,17 @@ export function ShareStep({
       {/* Toast notification */}
       {toastMessage && (
         <a
-          href={toastMessage.includes("history") ? "/history" : undefined}
+          href={toastVariant === "success" && toastMessage.includes("history") ? "/history" : undefined}
           className={cn(
-            "fixed left-4 right-4 top-4 z-50 flex w-fit items-center gap-2 rounded-lg bg-green-light px-4 py-2.5 shadow-lg transition-opacity",
-            toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
+            "fixed left-4 right-4 top-4 z-50 flex w-fit items-center gap-2 rounded-lg px-4 py-2.5 shadow-lg transition-opacity",
+            toastVariant === "success" ? "bg-green-light" : "bg-border",
+            toastVariant === "success" && toastMessage.includes("history") ? "hover:opacity-80 cursor-pointer" : "cursor-default"
           )}
           style={{ animation: "drank-toast-in 0.2s ease-out, drank-toast-out 0.4s ease-in 2.6s forwards", textDecoration: "none" }}
-          onClick={toastMessage.includes("history") ? undefined : (e) => e.preventDefault()}
+          onClick={toastVariant === "success" && toastMessage.includes("history") ? undefined : (e) => e.preventDefault()}
         >
-          <p className="font-mono text-xs text-green-dark">{toastMessage}</p>
-          {toastMessage.includes("history") && (
+          <p className={cn("font-mono text-xs", toastVariant === "success" ? "text-green-dark" : "text-foreground")}>{toastMessage}</p>
+          {toastVariant === "success" && toastMessage.includes("history") && (
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 text-green-dark opacity-60">
               <path d="M2.5 6h7M6.5 3l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
@@ -778,7 +783,7 @@ export function ShareStep({
             <div className="flex items-center justify-between md:hidden">
               <button
                 onClick={onBack}
-                className="flex items-center gap-1.5 py-2 font-sans text-sm text-green-dark transition-colors hover:opacity-70"
+                className="flex items-center gap-1.5 py-2 font-sans text-sm text-brown transition-colors hover:text-green-dark"
               >
                 <ArrowLeft className="size-4" />
                 Back
@@ -788,7 +793,7 @@ export function ShareStep({
             <div className="hidden h-[40px] shrink-0 items-center md:flex">
               <button
                 onClick={onBack}
-                className="flex items-center gap-1.5 font-sans text-sm text-green-dark transition-colors hover:opacity-70"
+                className="flex items-center gap-1.5 font-sans text-sm text-brown transition-colors hover:text-green-dark"
               >
                 <ArrowLeft className="size-4" />
                 Back
@@ -796,7 +801,7 @@ export function ShareStep({
             </div>
 
             {/* Row 2: Canvas — flex-1, receipt/story centered */}
-            <div className="flex min-h-0 flex-1 items-center justify-center">
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
               <InteractiveCanvas
                 data={data}
                 stickerImage={showDrinkSticker ? bgRemovedImage : null}
@@ -820,7 +825,7 @@ export function ShareStep({
               <div className="flex justify-center py-2">
                 <button
                   onClick={onReset}
-                  className="flex items-center gap-2 font-sans text-sm text-pink-dark transition-colors hover:opacity-70"
+                  className="flex items-center gap-2 font-sans text-sm text-brown transition-colors hover:text-green-dark"
                 >
                   <RotateCcw className="size-4" />
                   Rank Another
@@ -861,7 +866,7 @@ export function ShareStep({
               <div className="flex justify-center md:hidden">
                 <button
                   onClick={onReset}
-                  className="flex items-center gap-2 font-sans text-sm text-pink-dark transition-colors hover:opacity-70"
+                  className="flex items-center gap-2 font-sans text-sm text-brown transition-colors hover:text-green-dark"
                 >
                   <RotateCcw className="size-4" />
                   Rank Another
@@ -974,8 +979,27 @@ function InteractiveCanvas({
   storyReceiptUrl?: string | null
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const receiptScaleWrapperRef = useRef<HTMLDivElement>(null)
   const storyReceiptImgRef = useRef<HTMLImageElement | null>(null)
   const [activeSnapLineIds, setActiveSnapLineIds] = useState<string[]>([])
+  const [receiptScale, setReceiptScale] = useState(1)
+
+  useEffect(() => {
+    if (mode !== "receipt") return
+    const wrapper = receiptScaleWrapperRef.current
+    const receipt = containerRef.current
+    if (!wrapper || !receipt) return
+    const measure = () => {
+      const availH = wrapper.clientHeight
+      const naturalH = receipt.scrollHeight
+      if (availH > 0 && naturalH > 0) setReceiptScale(Math.min(1, availH / naturalH))
+    }
+    const ro = new ResizeObserver(measure)
+    ro.observe(wrapper)
+    ro.observe(receipt)
+    measure()
+    return () => ro.disconnect()
+  }, [mode])
 
   const customizations: string[] = []
   if (data.iceTemp) customizations.push(toTitleCase(data.iceTemp))
@@ -1107,12 +1131,16 @@ function InteractiveCanvas({
 
   // Receipt mode — no animation, no rotation, stickers bounded to receipt
   return (
-    <div className="relative mx-auto flex items-center justify-center" style={{ width: "min(320px, 100%)" }}>
+    <div
+      ref={receiptScaleWrapperRef}
+      className="relative mx-auto self-stretch flex min-h-0 items-center justify-center"
+      style={{ width: "min(320px, 100%)" }}
+    >
       <div
         ref={containerRef}
         onClick={handleContainerClick}
         className="relative w-[280px] rounded-sm px-5 py-6 overflow-hidden"
-        style={{ backgroundColor: "rgba(254,252,244,0.9)", fontFamily: "'IBM Plex Mono', monospace", boxShadow: "0 4px 32px rgba(0,0,0,0.08)" }}
+        style={{ backgroundColor: "rgba(254,252,244,0.9)", fontFamily: "'IBM Plex Mono', monospace", boxShadow: "0 4px 32px rgba(0,0,0,0.08)", transform: `scale(${receiptScale})`, transformOrigin: "center center" }}
 
       >
         <ReceiptContent
@@ -1654,8 +1682,8 @@ function DraggableSticker({
             <div
               onMouseDown={handleRotateStart}
               onTouchStart={handleRotateStart}
-              className="flex items-center justify-center rounded-full bg-pink-dark"
-              style={{ width: 14, height: 14, cursor: "grab", touchAction: "none", zIndex: 30 }}
+              className="flex items-center justify-center rounded-full bg-white"
+              style={{ width: 14, height: 14, border: "2px solid rgba(203,68,106,0.9)", cursor: "grab", touchAction: "none", zIndex: 30 }}
             />
             <div style={{ width: 1, height: 16, backgroundColor: "rgba(203,68,106,0.5)" }} />
           </div>
@@ -1684,9 +1712,9 @@ function DraggableSticker({
             onClick={(e) => e.stopPropagation()}
             className="absolute flex items-center justify-center rounded-full bg-pink-dark text-white"
             style={{
-              width: 12, height: 12,
-              top: -(halfH + PAD + 6),
-              right: -(halfW + PAD + 6),
+              width: 16, height: 16,
+              top: -(halfH + PAD + 8),
+              right: -(halfW + PAD + 8),
               transform: `rotate(${-sticker.rotation}deg)`,
               transformOrigin: "center center",
               zIndex: 30,
@@ -1695,7 +1723,7 @@ function DraggableSticker({
               pointerEvents: "auto",
             }}
           >
-            <X className="size-2.5" />
+            <X className="size-2.5" strokeWidth={2.5} />
           </button>
 
           {/* Resize handle — bottom-left (desktop only) */}

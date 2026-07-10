@@ -118,7 +118,6 @@ export function NavDrawer({ open, onClose, onNavigate }: NavDrawerProps) {
 
         <nav className="flex flex-col gap-2">
           {NAV_ITEMS.map(({ label, href, Icon, disabled }) => {
-            const isActive = pathname === href
             return (
               <Link
                 key={href}
@@ -127,11 +126,9 @@ export function NavDrawer({ open, onClose, onNavigate }: NavDrawerProps) {
                 aria-disabled={disabled}
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3 py-3 transition-colors",
-                  isActive
-                    ? "font-medium text-foreground"
-                    : disabled
-                      ? "cursor-not-allowed text-muted-foreground/40"
-                      : "text-foreground hover:bg-border/60"
+                  disabled
+                    ? "cursor-not-allowed text-muted-foreground/40"
+                    : "text-brown hover:bg-border/40 hover:text-green-dark"
                 )}
               >
                 <Icon className="size-7 shrink-0" />
@@ -164,20 +161,14 @@ export function DesktopNav({ onNavigate }: { onNavigate?: (href: string) => bool
       <Link
         href="/"
         onClick={(e) => handleClick(e, "/")}
-        className={cn(
-          "font-mono text-sm uppercase transition-colors hover:opacity-70",
-          pathname === "/" ? "font-medium text-foreground" : "text-green-dark"
-        )}
+        className="font-mono text-sm uppercase text-brown transition-colors hover:text-green-dark"
       >
         RANK
       </Link>
       <Link
         href="/history"
         onClick={(e) => handleClick(e, "/history")}
-        className={cn(
-          "font-mono text-sm uppercase transition-colors hover:opacity-70",
-          pathname === "/history" ? "font-medium text-foreground" : "text-green-dark"
-        )}
+        className="font-mono text-sm uppercase text-brown transition-colors hover:text-green-dark"
       >
         HISTORY
       </Link>
