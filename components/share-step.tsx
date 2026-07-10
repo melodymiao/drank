@@ -608,7 +608,12 @@ export function ShareStep({
   // Controls block — shared between desktop sidebar and mobile inline
   const DrinkStickerControl = (
     <div className="flex w-full items-center rounded-xl">
-      {!hasImage ? (
+      {isPhotoLoading ? (
+        <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
+          <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted border-t-foreground" />
+          <RotatingMessage messages={PHOTO_UPLOAD_MESSAGES} className="font-sans text-sm text-muted-foreground" />
+        </span>
+      ) : !hasImage ? (
         <button
           onClick={() => fileInputRef.current?.click()}
           className="flex items-center gap-1.5 font-sans text-sm text-brown transition-colors hover:text-green-dark"
@@ -616,11 +621,6 @@ export function ShareStep({
           Upload Photo For Sticker &amp; Story
           <Upload className="size-4" />
         </button>
-      ) : isPhotoLoading ? (
-        <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
-          <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-          <RotatingMessage messages={PHOTO_UPLOAD_MESSAGES} className="font-sans text-sm text-muted-foreground" />
-        </span>
       ) : isBgProcessing ? (
         <span className="flex items-center gap-1.5 font-sans text-sm text-muted-foreground">
           <div className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted border-t-foreground" />
