@@ -805,7 +805,6 @@ export function ShareStep({
               <InteractiveCanvas
                 data={data}
                 stickerImage={showDrinkSticker ? bgRemovedImage : null}
-                isProcessing={isBgProcessing}
                 placedStickers={activeStickers}
                 selectedStickerId={selectedStickerId}
                 onSelectSticker={setSelectedStickerId}
@@ -820,8 +819,11 @@ export function ShareStep({
             </div>
 
             {/* Row 3: Bottom section — fixed h-[120px], same as decorate-step.
-                Contains "Rank Another" + Download button, stacked, pinned to bottom. */}
-            <div className="hidden h-[120px] shrink-0 flex-col items-center justify-end gap-0 pb-16 md:flex">
+                Contains "Rank Another" + Download button, stacked, pinned to bottom.
+                pb-7 (not pb-16) — this row stacks two elements unlike decorate-step's
+                single button, so it needs less bottom padding to fit both without
+                the top one poking out above the box into the receipt area above. */}
+            <div className="hidden h-[120px] shrink-0 flex-col items-center justify-end gap-0 pb-7 md:flex">
               <div className="flex justify-center py-2">
                 <button
                   onClick={onReset}
@@ -952,7 +954,6 @@ interface SnapLine {
 function InteractiveCanvas({
   data,
   stickerImage,
-  isProcessing,
   placedStickers,
   selectedStickerId,
   onSelectSticker,
@@ -966,7 +967,6 @@ function InteractiveCanvas({
 }: {
   data: ReceiptData
   stickerImage: string | null
-  isProcessing?: boolean
   placedStickers: PlacedSticker[]
   selectedStickerId: string | null
   onSelectSticker: (id: string | null) => void
@@ -1146,7 +1146,6 @@ function InteractiveCanvas({
         <ReceiptContent
           data={data}
           stickerImage={stickerImage}
-          isProcessing={isProcessing}
           customizations={customizations}
           formatDate={formatDateLocal}
           formatTime={formatTimeLocal}
@@ -1197,7 +1196,6 @@ function InteractiveCanvas({
 function ReceiptContent({
   data,
   stickerImage,
-  isProcessing,
   customizations,
   formatDate,
   formatTime,
@@ -1205,7 +1203,6 @@ function ReceiptContent({
 }: {
   data: ReceiptData
   stickerImage: string | null
-  isProcessing?: boolean
   customizations: string[]
   formatDate: (d: string) => string
   formatTime: (t: string) => string
@@ -1259,14 +1256,7 @@ function ReceiptContent({
       )}
 
       {/* Drink sticker */}
-      {isProcessing ? (
-        <div className="my-3 flex justify-center">
-          <div className="flex flex-col items-center gap-1">
-            <div className="size-6 animate-spin rounded-full border-2 border-muted border-t-foreground" />
-            <RotatingMessage messages={BG_REMOVAL_MESSAGES} className="w-[120px] text-center text-[8px] text-muted-foreground" />
-          </div>
-        </div>
-      ) : stickerImage ? (
+      {stickerImage ? (
         <div className="mb-1 flex justify-center">
           <img
             src={stickerImage}
