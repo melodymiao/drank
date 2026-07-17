@@ -176,10 +176,10 @@ function AvgScoreSticker({ value, visible, delay }: { value: string; visible: bo
         </defs>
         <circle cx="110" cy="110" r="110" fill="#CB446A" />
         <text fontFamily="var(--font-ibm-plex-mono), monospace" fontWeight={500} fontSize="15" fill="#481D0F">
-          <textPath href="#avg-score-top" startOffset="0%" textLength="257" lengthAdjust="spacing">avg score &#183; avg score &#183;</textPath>
+          <textPath href="#avg-score-top" startOffset="0%" textLength="257" lengthAdjust="spacing">avg score &#183; avg score &#183; </textPath>
         </text>
         <text fontFamily="var(--font-ibm-plex-mono), monospace" fontWeight={500} fontSize="15" fill="#481D0F">
-          <textPath href="#avg-score-bottom" startOffset="0%" textLength="257" lengthAdjust="spacing">avg score &#183; avg score &#183;</textPath>
+          <textPath href="#avg-score-bottom" startOffset="0%" textLength="257" lengthAdjust="spacing">avg score &#183; avg score &#183; </textPath>
         </text>
         <text x="108" y="128" textAnchor="middle" fontFamily="var(--font-permanent-marker), cursive" fontSize="68" fill="#FEFCF4">
           <tspan rotate="-6,3,-4">{value}</tspan>
